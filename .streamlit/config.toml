@@ -1,0 +1,6 @@
+[server]
+# Reel-length 48k/24-bit WAVs are big; allow uploads up to 4 GB.
+maxUploadSize = 4000
+
+[browser]
+gatherUsageStats = false

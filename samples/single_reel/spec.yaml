@@ -1,0 +1,43 @@
+name: Demo broadcast delivery
+
+loudness:
+  integrated_lufs: -23      # EBU R128
+  tolerance_lu: 1
+  true_peak_dbtp: -1
+
+format:
+  sample_rate: 48000
+  bit_depth: 24
+  channels: 1
+
+naming:
+  # <TITLE>_<TERR>_<REEL>_<STEM>_<STAGE>_v<NN>.wav  e.g. TEST_SPC_R1_DX_PMX_v01.wav
+  pattern: '^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$'
+
+reel:
+  number: 1
+  fps: 24
+  session_start: '01:00:00:00'
+  pip: '01:00:06:00'        # head pip, 2 s before FFOA
+  ffoa: '01:00:08:00'
+  # lfoa: '01:19:42:11'     # set this to also check the tail pip (2 s after LFOA)
+
+pip:
+  frequency_hz: 1000
+  search_window_s: 1.5      # look this far either side of where the pip should be
+  tolerance_frames: 0       # any whole-frame offset fails
+  min_level_dbfs: -40       # quieter than this = no pip
+
+clipping:
+  threshold: 0.999          # |sample| at or above this counts as full scale
+  min_consecutive: 3        # this many full-scale samples in a row = a clip
+
+noise:
+  max_floor_dbfs: -60       # warn if the quietest parts after FFOA sit above this
+
+# Used later by the transcription checks
+script:
+  match_threshold: 0.85
+sync:
+  start_offset_s: 0.5
+  duration_tolerance_pct: 20
