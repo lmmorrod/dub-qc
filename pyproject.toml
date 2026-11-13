@@ -1,0 +1,27 @@
+[project]
+name = "dubqc"
+version = "0.1.0"
+description = "Automated QC for dubbed dialogue deliveries: naming, format, loudness, clipping and sync pip checks."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "soundfile>=0.12",
+    "pyloudnorm>=0.1.1",
+    "pyyaml>=6.0",
+    "streamlit>=1.35",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["dubqc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
