@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dub QC</title>
+<meta name="description" content="Dub QC: automated delivery QC for dubbed dialogue. Every file checked, every problem timecoded.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+
+<div class="bg-glow" aria-hidden="true"><span></span><span></span></div>
+
+<!-- Floating pill nav -->
+<header class="nav">
+  <a class="brand" href="#top" aria-label="Dub QC, back to top">
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--background-accent)"/><g stroke="#fff" stroke-width="2.4" stroke-linecap="round"><line x1="7" y1="13" x2="7" y2="19"/><line x1="11.5" y1="9" x2="11.5" y2="23"/><line x1="16" y1="12" x2="16" y2="20"/></g><path d="M19.5 16.5l3 3 5-6.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Dub <b>QC</b></span>
+  </a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#problem">Problem</a>
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#tour">Tour</a>
+  </nav>
+  <a class="btn btn-primary btn-sm magnetic" href="https://github.com/lmmorrod/dub-qc">GitHub</a>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <section class="hero" aria-label="Introduction">
+    <div class="wrap center">
+      <div class="tag" data-reveal>Delivery QC for dubbed dialogue</div>
+      <h1 class="display" data-split>Every file checked. Every problem <em>timecoded.</em></h1>
+      <p class="lede" data-split>Dub QC runs the technical checks on a dubbed film's audio at every stage, from raw dialogue to final deliverables, and points whoever is doing the listen-through to exactly where to listen.</p>
+      <div class="actions" data-reveal>
+        <a class="btn btn-primary magnetic" href="https://github.com/lmmorrod/dub-qc">View on GitHub <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary magnetic" href="#tour">See the report</a>
+      </div>
+    </div>
+    <div class="billboard-stage">
+      <figure class="billboard" data-tilt>
+        <img src="screenshots/report_top.png" alt="A Dub QC report: delivery status by territory, listening checklist and delivery manifest grid" width="2480" height="3400" loading="eager">
+      </figure>
+    </div>
+  </section>
+
+  <!-- Marquee of terms -->
+  <section class="marquee-band" aria-label="What it checks">
+    <div class="marquee mask-fade-x">
+      <div class="marquee-track" data-marquee>
+        <span>Loudness</span><span>True peak</span><span>Clipping</span><span>Sync pip</span><span>File naming</span><span>Format</span><span>Noise floor</span><span>Walla</span><span>Editor notes</span><span>Redeliveries</span><span>R128</span><span>IMAX</span><span>Nearfield</span><span>Premix</span><span>Printmaster</span><span>Final QC</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem: reading word-fill -->
+  <section id="problem" class="section" aria-label="The problem">
+    <div class="wrap narrow">
+      <div class="tag" data-reveal>The problem</div>
+      <p class="fill-text" data-fill>A dubbed film is checked again and again before it ships. Dialogue comes in from every territory, gets mixed, then is checked, fixed and checked again from premix to printmaster to final QC, and finally turned into every version the release needs. Dozens of files, several stems, many versions, and every pass depends on someone listening for everything. Things slip through.</p>
+    </div>
+  </section>
+
+  <!-- Features bento -->
+  <section id="features" class="section" aria-label="Features">
+    <div class="wrap">
+      <div class="section-head center">
+        <div class="tag" data-reveal>What it does</div>
+        <h2 class="title" data-split>The technical checks, done before anyone presses play.</h2>
+        <p class="sub" data-split>Every file gets a rating, a timecoded issue list and a load report. Across a whole delivery it tracks what's missing, what got fixed and who needs support.</p>
+      </div>
+
+      <div class="bento">
+
+        <article class="card cell span-2" data-reveal>
+          <div class="widget wave-widget" aria-hidden="true">
+            <svg class="wave" viewBox="0 0 600 120" preserveAspectRatio="none" data-wave="dialogue"></svg>
+            <span class="marker crit" style="left:24%"><i>PIP +3 fr</i></span>
+            <span class="marker crit" style="left:58%"><i>CLIPPING</i></span>
+            <span class="marker warn" style="left:81%"><i>TRUE PEAK</i></span>
+            <span class="playhead"></span>
+          </div>
+          <h3>Technical checks on every file</h3>
+          <p>Naming, format, loudness, true peak, clipping, sync pip and noise, each flagged with a timecode, a severity and a suggested fix.</p>
+        </article>
+
+        <article class="card cell" data-reveal style="--d:.1s">
+          <div class="widget manifest" aria-hidden="true">
+            <div class="mh"></div><div class="mh">DX</div><div class="mh">MX</div><div class="mh">FX</div>
+            <div class="mh">R1</div><span class="ok">v02</span><span class="ok">v01</span><span class="ok">v01</span>
+            <div class="mh">R2</div><span class="ok">v01</span><span class="ok">v01</span><span class="dup">×2</span>
+            <div class="mh">R3</div><span class="miss">Missing</span><span class="ok">v01</span><span class="ok">v01</span>
+          </div>
+          <h3>Delivery manifest</h3>
+          <p>What should arrive against what did: <em>"SPC: 8/9 delivered, R3 DX missing."</em></p>
+        </article>
+
+        <article class="card cell" data-reveal>
+          <div class="widget redelivery" aria-hidden="true">
+            <div class="rd"><span class="pill ok">Fixed</span><code>PIP OFFSET</code></div>
+            <div class="rd"><span class="pill warn">Still present</span><code>CLIPPING</code></div>
+            <div class="rd"><span class="pill crit">New issue</span><code>AUDIO BEFORE FFOA</code></div>
+          </div>
+          <h3>Redelivery check</h3>
+          <p>When v02 arrives, every v01 issue is marked fixed or still present, and anything new is flagged.</p>
+        </article>
+
+        <article class="card cell" data-reveal style="--d:.1s">
+          <div class="widget bars" aria-hidden="true" data-bars>
+            <div class="bar" style="--h:50%"><b>50%</b><span>A</span></div>
+            <div class="bar" style="--h:50%"><b>50%</b><span>J</span></div>
+            <div class="bar" style="--h:100%"><b>100%</b><span>L</span></div>
+            <div class="bar" style="--h:83%"><b>83%</b><span>S</span></div>
+          </div>
+          <h3>Producer scorecard</h3>
+          <p>First-time pass rate, top issues and a coaching note: <em>"3 of 5 rejects are sync pip."</em></p>
+        </article>
+
+        <article class="card cell" data-reveal style="--d:.2s">
+          <div class="widget notes mask-fade-y" aria-hidden="true">
+            <div class="notes-track">
+              <div class="note"><code>01:00:11:12</code><span>Off-screen line</span><b class="ok">Present</b></div>
+              <div class="note"><code>02:00:17:18</code><span>Breath must stay</span><b class="ok">Present</b></div>
+              <div class="note"><code>03:00:14:12</code><span>Radio voice</span><b class="crit">Silent</b></div>
+              <div class="note"><code>01:00:11:12</code><span>Off-screen line</span><b class="ok">Present</b></div>
+              <div class="note"><code>02:00:17:18</code><span>Breath must stay</span><b class="ok">Present</b></div>
+              <div class="note"><code>03:00:14:12</code><span>Radio voice</span><b class="crit">Silent</b></div>
+            </div>
+          </div>
+          <h3>Editor notes</h3>
+          <p>Timecoded notes carried through every pass, flagged if the noted line goes quiet.</p>
+        </article>
+
+        <article class="card cell span-2" data-reveal>
+          <div class="widget wave-widget" aria-hidden="true">
+            <svg class="wave" viewBox="0 0 600 120" preserveAspectRatio="none" data-wave="music"></svg>
+            <span class="region" style="left:44%;width:16%"><i>Possible walla</i></span>
+          </div>
+          <h3>Voice markers in music and effects</h3>
+          <p>A detector listens for the syllable-rate rhythm of speech and marks likely walla, breaths and efforts, so dialogue editors don't double them with the dub.</p>
+        </article>
+
+        <article class="card cell" data-reveal style="--d:.1s">
+          <ul class="widget checklist" aria-hidden="true">
+            <li><i></i>All dialogue present and in sync</li>
+            <li><i></i>Off-screen lines accounted for</li>
+            <li><i></i>Treatments match the original</li>
+            <li><i></i>No doubling with music and effects</li>
+          </ul>
+          <h3>What to listen for</h3>
+          <p>The listening checks for each stage and stem, next to what's already been checked automatically.</p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="section" aria-label="How it works">
+    <div class="wrap">
+      <div class="section-head center">
+        <div class="tag" data-reveal>How it works</div>
+        <h2 class="title" data-split>Drop in a batch. Get one report.</h2>
+      </div>
+      <div class="steps">
+        <div class="card step" data-reveal><span class="num">01</span><h3>Drop in the files</h3><p>A batch of WAVs, plus a delivery spec. Optionally a producers list, editor notes and an earlier report.</p></div>
+        <div class="card step" data-reveal style="--d:.1s"><span class="num">02</span><h3>Every file is checked</h3><p>Against its stage, its stem and its delivery version. Theatrical and R128 limits from the same spec.</p></div>
+        <div class="card step" data-reveal style="--d:.2s"><span class="num">03</span><h3>Act on one report</h3><p>An HTML report, JSON for the next redelivery check, and a marker list to drop into the session.</p></div>
+      </div>
+      <div class="card terminal" data-reveal>
+        <div class="term-bar"><span></span><span></span><span></span><button class="copy" type="button" data-copy="#cmds">Copy</button></div>
+<pre id="cmds"><code><span class="c"># generate a 30-file demo batch, then check it</span>
+uv run python -m dubqc make-demo-batch
+uv run python -m dubqc check samples/synthetic/batch/*.wav \
+  --spec samples/demo_batch/spec.yaml \
+  --producers samples/synthetic/batch/producers.csv \
+  --notes samples/synthetic/batch/editor_notes.csv</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Numbers -->
+  <section class="section stats-band" aria-label="In numbers">
+    <div class="wrap stats">
+      <div class="stat" data-reveal><b data-count="8">8</b><span>automatic checks per file</span></div>
+      <div class="stat" data-reveal style="--d:.1s"><b data-count="4">4</b><span>QC stages, raw dialogue to final</span></div>
+      <div class="stat" data-reveal style="--d:.2s"><b data-count="3">3</b><span>outputs: report, JSON, markers</span></div>
+      <div class="stat" data-reveal style="--d:.3s"><b data-count="44">44</b><span>automated tests</span></div>
+    </div>
+  </section>
+
+  <!-- Tour -->
+  <section id="tour" class="section" aria-label="Tour">
+    <div class="wrap">
+      <div class="section-head center">
+        <div class="tag" data-reveal>Tour</div>
+        <h2 class="title" data-split>A web app for the team. A command line for the pipeline.</h2>
+      </div>
+      <div class="tour">
+        <figure class="card shot" data-reveal>
+          <img src="screenshots/app.jpg" alt="The Dub QC web app showing the What to listen for checklist" loading="lazy">
+          <figcaption>Web app: drag in a batch, tick through the listening checklist, sort the scorecard.</figcaption>
+        </figure>
+        <figure class="card shot terminal-shot" data-reveal style="--d:.1s">
+<pre><code><span class="c">Delivery manifest</span>
+  SPC: 8/9 delivered, R3 DX missing
+  FRA: 9/9 delivered, R2 FX duplicate
+  GER: 9/9 delivered, 1 unexpected file
+
+<span class="c">Editor notes</span>: 7 of 8 noted spots have audio
+  <span class="r">SILENT</span>  03:00:14:12  GER R3 DX: off-screen line
+
+<span class="c">Redelivery check</span>
+  SPC R1 DX v01 → v02: <span class="r">Still failing</span>
+  (1 fixed, 3 still present, 1 new)
+
+<span class="c">Producer scorecard</span>
+  Jonas Weber  first-time pass 50%  5 reject
+  | 3 of 5 rejects are sync pip,
+  | so sync training needed.</code></pre>
+          <figcaption>Command line: the same checks, ready for a delivery pipeline. Demo data, made-up names.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section cta" aria-label="Get it">
+    <div class="wrap center">
+      <h2 class="title big" data-split>Built to run alongside the <em>listen-through.</em></h2>
+      <p class="sub" data-split>Open source, runs locally, all demo data synthetic.</p>
+      <div class="actions" data-reveal>
+        <a class="btn btn-primary magnetic" href="https://github.com/lmmorrod/dub-qc">View on GitHub <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary magnetic" href="https://github.com/lmmorrod/dub-qc#run-it">How to run it</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer revealed from behind -->
+<div class="footer-reveal" data-footer-wrap>
+  <footer class="footer" data-footer>
+    <div class="wrap footer-row">
+      <span>Delivery QC for dubbed dialogue</span>
+      <span><a href="https://github.com/lmmorrod/dub-qc">GitHub</a> · Python, numpy, scipy, pyloudnorm, Streamlit</span>
+    </div>
+    <div class="wordmark-box"><div class="wordmark" data-autofit>Dub QC</div></div>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
