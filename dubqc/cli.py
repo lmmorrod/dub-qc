@@ -1,6 +1,7 @@
 """Command line:
 
-    python -m dubqc check FILE.wav [FILE.wav ...] --spec spec.yaml [--producers producers.csv] [--baseline old.json]
+    python -m dubqc check FILE.wav [FILE.wav ...] --spec spec.yaml [--producers producers.csv]
+        [--baseline old.json] [--notes editor_notes.csv]
     python -m dubqc make-demo samples/synthetic
     python -m dubqc make-demo-batch samples/synthetic/batch
 """
@@ -14,6 +15,7 @@ from pathlib import Path
 from .batch import run_batch
 from .redelivery import load_baseline
 from .report import write_reports
+from .notes import load_notes
 from .scorecard import load_producers
 from .spec import load_spec
 
@@ -27,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     chk.add_argument("--spec", help="delivery spec YAML (defaults: EBU R128, 48k/24/mono)")
     chk.add_argument("--producers", help="CSV or YAML mapping file -> producer")
     chk.add_argument("--baseline", help="an earlier JSON report, so redeliveries can be compared with it")
+    chk.add_argument("--notes", help="editor notes CSV (reel, timecode, type, note, stem, territory)")
     chk.add_argument("--out", default="reports", help="folder for the reports (default: reports)")
     chk.add_argument("--project", default="Dub QC", help="project name for the report header")
 
@@ -46,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "make-demo-batch":
         from .demo import write_demo_batch
         paths, csv_path = write_demo_batch(args.folder)
-        print(f"wrote {len(paths)} WAVs and {csv_path}")
+        print(f"wrote {len(paths)} WAVs, {csv_path} and {csv_path.parent / 'editor_notes.csv'}")
         return 0
 
     spec = load_spec(args.spec)
@@ -57,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     batch = run_batch(files, spec, producers=load_producers(args.producers),
-                      baseline=load_baseline(args.baseline) if args.baseline else None)
+                      baseline=load_baseline(args.baseline) if args.baseline else None,
+                      notes=load_notes(args.notes))
 
     for r in batch.files:
         crit = sum(i.severity == "Critical" for i in r.issues)
@@ -72,6 +76,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {t['summary']}")
         for u in batch.manifest["unexpected_other"]:
             print(f"  Not on this delivery: {u['file']} ({u['reason']})")
+    noted = [(r.file, n) for r in batch.current_files for n in r.notes]
+    if noted:
+        silent = [(f, n) for f, n in noted if n["status"] == "Silent"]
+        print(f"\nEditor notes: {len(noted) - len(silent)} of {len(noted)} noted spots have audio")
+        for f, n in silent:
+            print(f"  SILENT  {n['timecode']}  {f}: {n['type']}: {n['note']}")
     if batch.redeliveries:
         print("\nRedelivery check")
         for rd in batch.redeliveries:
