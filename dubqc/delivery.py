@@ -7,41 +7,62 @@ from pathlib import Path
 import soundfile as sf
 
 from . import audio_checks as ac
-from .models import CRITICAL, SEVERITY_ORDER, WARNING, FileResult
+from .me_markers import check_voice_in_me
+from .models import CRITICAL, SEVERITY_ORDER, WARNING, FileResult, Issue
 from .naming import check_naming, describe, parse_valid
-from .spec import spec_for_reel
+from .notes import check_notes, notes_for
+from .spec import checks_for, spec_for_file
+
+# Which issue codes belong to which switchable check
+CODE_CHECK = {"LOUDNESS": "loudness", "SILENT": "loudness", "TRUE PEAK": "true_peak"}
 
 
 def check_file(path: str | Path, spec: dict, display_name: str | None = None,
-               producer: str = "") -> FileResult:
+               producer: str = "", notes: list[dict] | None = None) -> FileResult:
+    """Run the checks that apply to this file's stage and stem, against its version's limits."""
     path = Path(path)
     name = display_name or path.name
     result = FileResult(file=name, path=str(path), producer=producer)
     parts = parse_valid(name)
-    spec = spec_for_reel(spec, parts["REEL_NUM"] if parts else None)
+    spec, result.version = spec_for_file(spec, parts)
+    result.stage = parts["STAGE"] if parts else ""
+    result.stem = parts["STEM"] if parts else ""
     result.reel_timecodes = {k: spec["reel"].get(k) for k in ("fps", "session_start", "pip", "ffoa")}
+    checks = checks_for(spec, result.stage or None, result.stem or None)
+    result.checks_run = checks
 
-    result.issues += check_naming(name, spec)
+    if "naming" in checks:
+        result.issues += check_naming(name, spec)
 
     try:
         fmt_issues, fmt_metrics = ac.check_format(str(path), spec)
     except Exception as exc:  # unreadable file
-        from .models import Issue
         result.issues.append(Issue(check="Format", code="UNREADABLE", severity=CRITICAL,
                                    message=f"Couldn't read the file as audio: {exc}",
                                    fix="Check the file isn't truncated or in an unsupported format."))
         _finish(result, spec)
         return result
-    result.issues += fmt_issues
+    if "format" in checks:
+        result.issues += fmt_issues
     result.metrics.update(fmt_metrics)
 
     data, sr = sf.read(str(path), dtype="float32", always_2d=True)
     result.duration_s = len(data) / sr
 
-    for check in (ac.check_loudness, ac.check_clipping, ac.check_pips, ac.check_noise):
-        issues, metrics = check(data, sr, spec)
-        result.issues += issues
+    if "loudness" in checks or "true_peak" in checks:
+        issues, metrics = ac.check_loudness(data, sr, spec)
+        result.issues += [i for i in issues if CODE_CHECK.get(i.code, "loudness") in checks]
         result.metrics.update(metrics)
+    for key, check in (("clipping", ac.check_clipping), ("pip", ac.check_pips),
+                       ("noise", ac.check_noise), ("voice_in_me", check_voice_in_me)):
+        if key in checks:
+            issues, metrics = check(data, sr, spec)
+            result.issues += issues
+            result.metrics.update(metrics)
+
+    if notes:
+        note_issues, result.notes = check_notes(data, sr, spec, notes_for(notes, parts))
+        result.issues += note_issues
 
     result.waveform = ac.waveform_peaks(data)
     _finish(result, spec)
@@ -79,11 +100,14 @@ def load_report(result: FileResult, spec: dict) -> tuple[str, str]:
 
     lufs, tp = m.get("integrated_lufs"), m.get("true_peak_dbtp")
     target = spec["loudness"]
-    if lufs is not None:
+    if lufs is not None and target.get("integrated_lufs") is not None:
         verdict = "out of spec" if "LOUDNESS" in codes else "within spec"
         lines.append(f"Loudness {lufs} LUFS integrated (target {target['integrated_lufs']} ±{target['tolerance_lu']}), "
                      f"{verdict}; true peak {tp:+} dBTP"
                      f"{' (over the ' + str(target['true_peak_dbtp']) + ' dBTP ceiling)' if 'TRUE PEAK' in codes else ''}.")
+    elif lufs is not None:
+        lines.append(f"Loudness {lufs} LUFS integrated (no target for this version); true peak {tp:+} dBTP"
+                     f"{' (over the ceiling)' if 'TRUE PEAK' in codes else ''}.")
 
     clips = m.get("clip_timecodes", [])
     if clips:
@@ -103,6 +127,15 @@ def load_report(result: FileResult, spec: dict) -> tuple[str, str]:
                          "so the track is likely out of sync from the pip onwards.")
     if "AUDIO BEFORE FFOA" in codes:
         lines.append("There's audio before first frame of action.")
+
+    voice = m.get("me_voice_markers", [])
+    if voice:
+        lines.append(f"{len(voice)} passage(s) of possible voice content in the M&E at {', '.join(voice[:5])}: "
+                     "listen and mark for the load.")
+    missing_notes = [n for n in result.notes if n["status"] == "Silent"]
+    if missing_notes:
+        lines.append(f"{len(missing_notes)} noted line(s) have no audio: "
+                     + ", ".join(f"{n['timecode']} ({n['type']})" for n in missing_notes) + ".")
 
     floor = m.get("noise_floor_dbfs")
     if floor is not None:
