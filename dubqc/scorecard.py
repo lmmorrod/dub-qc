@@ -47,7 +47,9 @@ def load_producers(source: str | Path | None) -> dict[str, str]:
     """Read a file -> producer mapping from a CSV or YAML path (or CSV/YAML text)."""
     if not source:
         return {}
-    text = Path(source).read_text() if Path(str(source)).exists() and "\n" not in str(source) else str(source)
+    # Text with a line break is the mapping itself (e.g. an uploaded file); anything else is a path.
+    is_text = isinstance(source, str) and ("\n" in source or "\r" in source)
+    text = str(source) if is_text else Path(source).read_text()
     first = text.lstrip().splitlines()[0] if text.strip() else ""
     if "," in first:
         rows = csv.DictReader(io.StringIO(text))

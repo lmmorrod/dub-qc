@@ -117,6 +117,10 @@ def test_load_producers_csv_and_yaml(tmp_path):
     yaml_file = tmp_path / "p.yaml"
     yaml_file.write_text("a.wav: Ana\n")
     assert load_producers(yaml_file) == {"a.wav": "Ana"}
+    # uploaded text (as the web app passes it), long enough to break if treated as a path
+    long_csv = "file,producer\r\n" + "".join(f"{'X' * 40}_{i}.wav,Ana\r\n" for i in range(40))
+    assert len(load_producers(long_csv)) == 40
+    assert load_producers("a.wav: Ana\nb.wav: Jonas\n") == {"a.wav": "Ana", "b.wav": "Jonas"}
 
 
 # ---------------------------------------------------------------- redelivery
