@@ -40,6 +40,11 @@ class FileResult:
     producer: str = ""
     reel_timecodes: dict = field(default_factory=dict)    # the reel's fps/session_start/pip/ffoa used
     superseded: bool = False                               # a later version of this deliverable arrived
+    stage: str = ""                                        # RAW / PMX / PMR / FSS
+    stem: str = ""                                         # DX / MX / FX / ME / VOX
+    version: str = ""                                      # delivery version code used, e.g. R128
+    checks_run: list[str] = field(default_factory=list)
+    notes: list[dict] = field(default_factory=list)        # editor notes that apply, with status
 
     @property
     def passed(self) -> bool:

@@ -19,7 +19,7 @@ NEW = "New issue"
 
 # These problems are tied to a place in the file, so v01 and v02 must match by position too.
 # Everything else (loudness, pip offset, format...) happens once per file and matches by type.
-POSITIONAL = {"CLIPPING", "AUDIO BEFORE FFOA"}
+POSITIONAL = {"CLIPPING", "AUDIO BEFORE FFOA", "VOICE IN MUSIC/EFFECTS", "NOTED CONTENT MISSING"}
 
 
 def load_baseline(path: str | Path) -> list[FileResult]:

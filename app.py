@@ -14,7 +14,9 @@ from dubqc import brand
 from dubqc.batch import run_batch
 from dubqc.redelivery import load_baseline
 from dubqc.report import to_html, to_json, write_reports
+from dubqc.notes import load_notes
 from dubqc.scorecard import load_producers
+from dubqc.spec import checklist_for, entry_name
 from dubqc.spec import load_spec
 
 HERE = Path(__file__).parent
@@ -46,6 +48,7 @@ with st.sidebar:
         spec_text = st.text_area("Spec YAML", spec_text, height=420, label_visibility="collapsed")
     producers_upload = st.file_uploader("Producers (CSV or YAML: file → producer)", type=["csv", "yaml", "yml"])
     baseline_upload = st.file_uploader("Previous report (JSON), to compare redeliveries", type=["json"])
+    notes_upload = st.file_uploader("Editor notes (CSV: reel, timecode, type, note, stem, territory)", type=["csv"])
     st.caption("Try it: `uv run python -m dubqc make-demo-batch` writes 30 demo WAVs and a producers.csv "
                "to samples/synthetic/batch.")
 
@@ -58,6 +61,7 @@ if st.button("Run QC", type="primary", disabled=not uploads):
         st.error(f"Couldn't read the spec: {exc}")
         st.stop()
     producers = load_producers(producers_upload.read().decode()) if producers_upload else {}
+    notes = load_notes(notes_upload.read().decode()) if notes_upload else []
     baseline = None
     if baseline_upload:
         with tempfile.NamedTemporaryFile("wb", suffix=".json", delete=False) as fh:
@@ -71,7 +75,7 @@ if st.button("Run QC", type="primary", disabled=not uploads):
             p.write_bytes(up.getbuffer())
             paths.append(p)
             names.append(up.name)
-        batch = run_batch(paths, spec, names, producers, baseline)
+        batch = run_batch(paths, spec, names, producers, baseline, notes)
         saved = write_reports(batch, spec, "reports", project)
     st.session_state["run"] = {"batch": batch, "spec": spec, "project": project, "saved": saved}
 
@@ -90,9 +94,11 @@ if run:
     cols[3].metric("Critical", sum(i.severity == "Critical" for i in issues))
     cols[4].metric("Warnings", sum(i.severity == "Warning" for i in issues))
 
-    tabs = st.tabs(["Overview", "Delivery manifest", "Redelivery check", "Producer scorecard", "Issues", "Full report"])
+    tabs = st.tabs(["Overview", "What to listen for", "Delivery manifest", "Redelivery check", "Editor notes",
+                    "Producer scorecard", "Issues", "Full report"])
+    tab_overview, tab_listen, tab_manifest, tab_redelivery, tab_notes, tab_score, tab_issues, tab_report = tabs
 
-    with tabs[0]:
+    with tab_overview:
         if batch.manifest:
             for t in batch.manifest["territories"]:
                 ok = t["delivered"] == t["expected"] and not t["duplicates"] and not t["unexpected"]
@@ -107,7 +113,30 @@ if run:
                            indent=2, default=str), file_name=saved["json"].name, mime="application/json")
         d3.download_button("Download marker list", saved["markers"].read_text(), file_name=saved["markers"].name)
 
-    with tabs[1]:
+    with tab_listen:
+        groups = {}
+        for r in current:
+            groups.setdefault((r.stage, r.stem), []).append(r)
+        order = {"RAW": 0, "PMX": 1, "PMR": 2, "FSS": 3}
+        for (stage, stem), files in sorted(groups.items(), key=lambda kv: (order.get(kv[0][0], 9), kv[0][1])):
+            items = checklist_for(spec, stage or None, stem or None)
+            if not items:
+                continue
+            title = " · ".join(x for x in (entry_name(spec, "stages", stage) if stage else "",
+                                           entry_name(spec, "stems", stem) if stem else "") if x)
+            st.subheader(f"{title[:1].upper() + title[1:]} ({len(files)} files)")
+            for item in items:
+                st.checkbox(item, key=f"chk-{stage}-{stem}-{item}")
+
+    with tab_notes:
+        noted = [{"file": r.file, "timecode": n["timecode"], "type": n["type"], "note": n["note"],
+                  "status": n["status"], "level (dBFS)": n["level_dbfs"]} for r in current for n in r.notes]
+        if not noted:
+            st.info("Load an editor notes CSV in the sidebar to check noted lines in every file.")
+        else:
+            st.dataframe(pd.DataFrame(noted), use_container_width=True, hide_index=True)
+
+    with tab_manifest:
         if not batch.manifest:
             st.info("This spec has no `manifest:` section, so there's nothing to compare against.")
         else:
@@ -127,7 +156,7 @@ if run:
                 for u in t["unexpected"]:
                     st.caption(f"Unexpected: {u['file']} ({u['reason']})")
 
-    with tabs[2]:
+    with tab_redelivery:
         if not batch.redeliveries:
             st.info("No redeliveries in this batch. Add v01 and v02 of the same file, "
                     "or load a previous report as a baseline.")
@@ -139,7 +168,7 @@ if run:
                                                    "old_found", "new_found"]],
                          use_container_width=True, hide_index=True)
 
-    with tabs[3]:
+    with tab_score:
         rows = [r for r in batch.scorecard]
         if not any(r["producer"] != "Unassigned" for r in rows):
             st.info("Load a producers file (CSV or YAML) in the sidebar to see the scorecard.")
@@ -160,7 +189,7 @@ if run:
                 })
             st.caption("Click a column header to sort.")
 
-    with tabs[4]:
+    with tab_issues:
         table = [{"file": r.file, "timecode": i.timecode, "issue": i.code, "severity": i.severity,
                   "problem": i.message, "fix": i.fix, "superseded": r.superseded}
                  for r in batch.files for i in r.issues]
@@ -169,6 +198,6 @@ if run:
         else:
             st.success("No issues found.")
 
-    with tabs[5]:
+    with tab_report:
         components.html(html, height=1600, scrolling=True)
         st.caption(f"Also saved to {saved['html'].parent}/")

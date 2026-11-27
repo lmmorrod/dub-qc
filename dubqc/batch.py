@@ -51,9 +51,9 @@ def analyse(results: list[FileResult], spec: dict, baseline: list[FileResult] | 
 
 
 def run_batch(paths, spec: dict, display_names=None, producers: dict[str, str] | None = None,
-              baseline: list[FileResult] | None = None) -> BatchResult:
+              baseline: list[FileResult] | None = None, notes: list[dict] | None = None) -> BatchResult:
     paths = [Path(p) for p in paths]
     display_names = display_names or [p.name for p in paths]
     producers = producers or {}
-    results = [check_file(p, spec, n, producers.get(n, "")) for p, n in zip(paths, display_names)]
+    results = [check_file(p, spec, n, producers.get(n, ""), notes) for p, n in zip(paths, display_names)]
     return analyse(results, spec, baseline)

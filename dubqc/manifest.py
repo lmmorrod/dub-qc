@@ -46,9 +46,11 @@ def check_manifest(filenames: list[str], spec: dict) -> dict | None:
     if not m:
         return None
     territories = [str(t) for t in m.get("territories", [])]
-    reels = [int(r) for r in m.get("reels", [])]
+    reels = [0 if str(r).upper() == "CONT" else int(str(r).upper().removeprefix("R")) for r in m.get("reels", [])]
     stems = [str(s) for s in m.get("stems", [])]
-    expected = {(t, r, s) for t in territories for r in reels for s in stems}
+    # Optional delivery versions, e.g. [R128, IMAX]; without them, files carry no version code.
+    versions = [str(v) for v in (m.get("versions") or [""])]
+    expected = {(t, r, s, v) for t in territories for r in reels for s in stems for v in versions}
 
     arrived: dict[tuple, list[str]] = defaultdict(list)
     unexpected: dict[str, list[dict]] = defaultdict(list)     # territory -> files
@@ -57,33 +59,37 @@ def check_manifest(filenames: list[str], spec: dict) -> dict | None:
         if parts is None:
             unexpected["Unrecognised"].append({"file": name, "reason": "filename can't be parsed"})
             continue
-        key = (parts["TERR"], parts["REEL_NUM"], parts["STEM"])
+        key = (parts["TERR"], parts["REEL_NUM"], parts["STEM"], parts["FORMAT"])
         if key in expected:
             arrived[key].append(name)
             continue
         if parts["TERR"] not in territories:
             reason = f"territory {parts['TERR']} isn't on this delivery"
         elif parts["REEL_NUM"] not in reels:
-            reason = f"reel {parts['REEL_NUM']} isn't on this delivery"
-        else:
+            reason = f"reel {parts['REEL']} isn't on this delivery"
+        elif parts["STEM"] not in stems:
             reason = f"stem {parts['STEM']} isn't on this delivery"
+        else:
+            reason = (f"version {parts['FORMAT']} isn't on this delivery" if parts["FORMAT"]
+                      else "no delivery version in the filename")
         unexpected[parts["TERR"]].append({"file": name, "reason": reason})
 
     report = {"territories": [], "unexpected_other": []}
     for terr in territories:
         slots, missing, duplicates = [], [], []
         for reel in reels:
-            for stem in stems:
-                key = (terr, reel, stem)
-                files = sorted(arrived.get(key, []))
-                status, latest = _slot_status(files)
-                slots.append({"reel": reel, "stem": stem, "label": slot_label(key),
-                              "status": status, "files": files, "latest": latest})
-                if status == MISSING:
-                    missing.append(slot_label(key))
-                elif status == DUPLICATE:
-                    duplicates.append({"slot": slot_label(key), "files": files})
-        n_expected = len(reels) * len(stems)
+            for version in versions:
+                for stem in stems:
+                    key = (terr, reel, stem, version)
+                    files = sorted(arrived.get(key, []))
+                    status, latest = _slot_status(files)
+                    slots.append({"reel": reel, "stem": stem, "version": version, "label": slot_label(key),
+                                  "status": status, "files": files, "latest": latest})
+                    if status == MISSING:
+                        missing.append(slot_label(key))
+                    elif status == DUPLICATE:
+                        duplicates.append({"slot": slot_label(key), "files": files})
+        n_expected = len(reels) * len(stems) * len(versions)
         delivered = sum(s["status"] != MISSING for s in slots)
         extra = unexpected.pop(terr, [])
         report["territories"].append({

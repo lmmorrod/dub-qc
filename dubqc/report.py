@@ -12,6 +12,8 @@ from pathlib import Path
 from . import brand
 from .batch import BatchResult, analyse
 from .models import CRITICAL, INFO, WARNING, FileResult
+from .naming import reel_label
+from .spec import checklist_for, entry_name
 
 SEVERITIES = [CRITICAL, WARNING, INFO]
 
@@ -65,6 +67,8 @@ def write_markers(results: list[FileResult], path: Path) -> None:
             for i in r.issues:
                 if i.timecode:
                     w.writerow([i.timecode, f"QC {i.code}", i.message, r.file, i.severity])
+            for n in r.notes:
+                w.writerow([n["timecode"], f"NOTE {n['type']}", f"{n['note']} ({n['status']})", r.file, "Note"])
 
 
 # ---------------------------------------------------------------- HTML
@@ -130,6 +134,7 @@ tr.superseded td{{color:var(--muted)}}
 .terr{{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}}
 .terr .card{{margin:0}}
 .fix,.muted{{color:var(--muted);font-size:12px}}
+ul.check{{margin:0;padding-left:18px}} ul.check li{{margin:3px 0}}
 .wave{{width:100%;height:80px;display:block;margin-top:8px}}
 details.load{{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 0;padding:10px 16px}}
 details.load summary{{cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap}}
@@ -184,13 +189,15 @@ def _waveform_svg(r: FileResult, spec: dict) -> str:
 def _header(batch: BatchResult, spec: dict, project: str) -> str:
     verdict = "PASS" if batch.passed else "FAIL"
     now = datetime.now().strftime("%d %b %Y, %H:%M")
-    links = [("summary", "Summary")]
+    links = [("summary", "Summary"), ("checklist", "What to listen for")]
     if batch.manifest:
         links.append(("manifest", "Delivery manifest"))
     if batch.redeliveries:
         links.append(("redelivery", "Redelivery check"))
     if any(r["producer"] != "Unassigned" for r in batch.scorecard):
         links.append(("scorecard", "Producer scorecard"))
+    if any(r.notes for r in batch.files):
+        links.append(("notes", "Editor notes"))
     links += [("files", "Files"), ("issues", "Issues"), ("load", "Load reports")]
     nav = "".join(f'<a href="#{a}">{t}</a>' for a, t in links)
     return (f"<header class='brand'><div class='inner'><div>{brand.wordmark_html(30)}"
@@ -241,10 +248,11 @@ def _manifest(batch: BatchResult, spec: dict) -> str:
         h.append(f"<div class='card'><h3>{escape(t['territory'])} <span class='muted'>{escape(t['name'])} · "
                  f"{t['delivered']}/{t['expected']} delivered</span></h3>"
                  "<table class='matrix'><tr><th>Reel</th>" + "".join(f"<th>{escape(s)}</th>" for s in stems) + "</tr>")
-        reels = sorted({s["reel"] for s in t["slots"]})
-        for reel in reels:
-            h.append(f"<tr><td><b>R{reel}</b></td>")
-            for slot in (s for s in t["slots"] if s["reel"] == reel):
+        rows = list(dict.fromkeys((s["reel"], s.get("version", "")) for s in t["slots"]))
+        for reel, version in rows:
+            label = reel_label(reel) + (f" <span class='muted'>{escape(version)}</span>" if version else "")
+            h.append(f"<tr><td><b>{label}</b></td>")
+            for slot in (s for s in t["slots"] if s["reel"] == reel and s.get("version", "") == version):
                 h.append(f"<td>{_slot_cell(slot, by_file)}</td>")
             h.append("</tr>")
         h.append("</table>")
@@ -337,7 +345,7 @@ def _files(batch: BatchResult, spec: dict) -> str:
     show_producer = any(r.producer for r in batch.files)
     h = ["<h2 id='files'>Files</h2><div class='card scroll'><table class='files sortable'><thead><tr><th>File</th>"
          + ("<th>Producer</th>" if show_producer else "")
-         + "<th>Result</th><th>Format</th><th>Loudness</th><th>True peak</th><th>Clips</th><th>Head pip</th>"
+         + "<th>Result</th><th>Stage</th><th>Format</th><th>Loudness</th><th>True peak</th><th>Clips</th><th>Head pip</th>"
            "</tr></thead><tbody>"]
     for r in batch.files:
         m = r.metrics
@@ -349,7 +357,8 @@ def _files(batch: BatchResult, spec: dict) -> str:
         result = _pill("Superseded") if r.superseded else (_pill("PASS", "Good") if r.passed else _pill("FAIL", "Reject"))
         h.append(f"<tr class='{'superseded' if r.superseded else ''}'><td class='fname'>{escape(r.file)}</td>"
                  + (f"<td>{escape(r.producer or '–')}</td>" if show_producer else "")
-                 + f"<td>{result}</td><td class='num'>{fmt}</td>"
+                 + f"<td>{result}</td><td>{escape(' · '.join(x for x in (r.stage, r.stem, r.version) if x) or '–')}</td>"
+                   f"<td class='num'>{fmt}</td>"
                    f"<td class='num'>{m.get('integrated_lufs', '–')} LUFS</td>"
                    f"<td class='num'>{m.get('true_peak_dbtp', '–')} dBTP</td>"
                    f"<td class='num'>{m.get('clip_events', '–')}</td>"
@@ -392,10 +401,64 @@ def _load_reports(batch: BatchResult, spec: dict) -> str:
     return "".join(h)
 
 
+CHECK_NAMES = {"naming": "file naming", "format": "format", "loudness": "loudness", "true_peak": "true peak",
+               "clipping": "clipping", "pip": "sync pip", "noise": "noise floor", "voice_in_me": "voice in music/effects"}
+
+
+def _checklist(batch: BatchResult, spec: dict) -> str:
+    """What the person doing this QC pass should listen for, per stage and stem in the batch,
+    and which technical checks Dub QC has already done for them."""
+    groups: dict[tuple, list[FileResult]] = {}
+    for r in batch.current_files:
+        groups.setdefault((r.stage, r.stem), []).append(r)
+    order = {"RAW": 0, "PMX": 1, "PMR": 2, "FSS": 3, "": 9}
+    cards = []
+    for (stage, stem), files in sorted(groups.items(), key=lambda kv: (order.get(kv[0][0], 5), kv[0][1])):
+        items = checklist_for(spec, stage or None, stem or None)
+        if not items:
+            continue
+        title = " · ".join(x for x in (entry_name(spec, "stages", stage) if stage else "",
+                                       entry_name(spec, "stems", stem) if stem else "") if x)
+        done = ", ".join(CHECK_NAMES[c] for c in files[0].checks_run)
+        cards.append(f"<div class='card'><h3>{escape(title[:1].upper() + title[1:])} <span class='muted'>{len(files)} file(s)"
+                     f"</span></h3><ul class='check'>" + "".join(f"<li>{escape(i)}</li>" for i in items) +
+                     f"</ul><p class='muted' style='margin:8px 0 0'>Already checked automatically: {escape(done)}.</p></div>")
+    if not cards:
+        return ""
+    return ("<h2 id='checklist'>What to listen for</h2><p class='sub'>The listening checks for this pass, "
+            "by stage and stem. The technical checks are done; these need ears.</p><div class='terr'>"
+            + "".join(cards) + "</div>")
+
+
+def _notes(batch: BatchResult) -> str:
+    """Editor notes and whether the noted content is still there in each file."""
+    rows: dict[tuple, list] = {}
+    for r in batch.current_files:
+        for n in r.notes:
+            key = (n["reel"], n["timecode"], n["type"], n["note"], n["stem"])
+            rows.setdefault(key, []).append((r, n))
+    if not rows:
+        return ""
+    h = ["<h2 id='notes'>Editor notes</h2><p class='sub'>Timecoded notes carried from earlier passes. "
+         "Each one is checked in every file it applies to: is the noted content still there?</p>"
+         "<div class='card scroll'><table><tr><th>Reel</th><th>Timecode</th><th>Type</th><th>Note</th>"
+         "<th>Status by file</th></tr>"]
+    for (reel, tc, kind, note, stem), hits in sorted(rows.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        cells = " ".join(
+            f"{_pill(n['status'], 'Good' if n['status'] == 'Present' else 'Reject' if n['status'] == 'Silent' else 'Info')}"
+            f"<span class='muted' style='margin:0 10px 0 4px'>{escape(r.file.split('_')[1] if '_' in r.file else r.file)}</span>"
+            for r, n in hits)
+        h.append(f"<tr><td>{escape(reel_label(reel))} {escape(stem)}</td><td class='tc'>{escape(tc)}</td>"
+                 f"<td>{escape(kind)}</td><td>{escape(note)}</td><td>{cells}</td></tr>")
+    h.append("</table></div>")
+    return "".join(h)
+
+
 def to_html(results, spec: dict, project: str = "Dub QC") -> str:
     batch = _as_batch(results, spec)
-    body = [_header(batch, spec, project), "<div class='wrap'>", _summary(batch), _manifest(batch, spec),
-            _redeliveries(batch), _scorecard(batch), _files(batch, spec), _issues(batch),
+    body = [_header(batch, spec, project), "<div class='wrap'>", _summary(batch), _checklist(batch, spec),
+            _manifest(batch, spec), _redeliveries(batch), _notes(batch), _scorecard(batch),
+            _files(batch, spec), _issues(batch),
             _load_reports(batch, spec),
             f"<footer>{brand.NAME} · {brand.TAGLINE}. Timecodes are session timecode at "
             f"{spec['reel']['fps']} fps from each reel's session start.</footer></div>"]

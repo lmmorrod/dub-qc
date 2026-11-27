@@ -39,9 +39,43 @@ def _line(duration: float, rng: np.random.Generator) -> np.ndarray:
     return noise * syllables * phrase * fade
 
 
+def _music(n: int, rng: np.random.Generator) -> np.ndarray:
+    """A slow chord bed: notes change every 2 s and swell gently, so the level never pulses at speech rate."""
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+    roots = rng.choice([110.0, 130.8, 146.8, 164.8, 196.0], size=int(n / SR / 2) + 1)
+    chord_env = 0.75 + 0.25 * np.sin(2 * np.pi * 0.25 * t)
+    for k, root in enumerate(roots):
+        a, b = int(k * 2 * SR), min(n, int((k + 1) * 2 * SR))
+        if a >= n:
+            break
+        seg_t = t[a:b] - t[a]
+        fade = np.minimum(1, np.minimum(seg_t, seg_t[::-1]) / 0.25)
+        for ratio, amp in ((1, 1.0), (1.25, 0.6), (1.5, 0.5), (2, 0.3), (3, 0.15)):
+            out[a:b] += amp * fade * np.sin(2 * np.pi * root * ratio * seg_t)
+    return out * chord_env
+
+
+def _effects(n: int, rng: np.random.Generator) -> np.ndarray:
+    """Steady low ambience plus an occasional impact (door, footstep)."""
+    sos = signal.butter(2, 800, btype="lowpass", fs=SR, output="sos")
+    out = 0.3 * signal.sosfilt(sos, rng.standard_normal(n))
+    t = 0.0
+    while t < n / SR:
+        t += rng.uniform(2.0, 3.5)
+        i = int(t * SR)
+        m = min(int(0.4 * SR), n - i)
+        if m <= 0:
+            break
+        decay = np.exp(-np.arange(m) / (0.06 * SR))
+        out[i:i + m] += 0.7 * decay * signal.sosfilt(sos, rng.standard_normal(m))
+    return out
+
+
 def make_dialogue(seed: int = 1, pip_offset_frames: int = 0, clip_line: int | None = None,
                   include_pip: bool = True, n_lines: int | None = None, gain_db: float = 0.0,
-                  blip_at_s: float | None = None) -> np.ndarray:
+                  blip_at_s: float | None = None, kind: str = "DX", drop_line: int | None = None,
+                  walla: tuple[float, float] | None = None) -> np.ndarray:
     """Return a mono float array at 48 kHz.
 
     pip_offset_frames: move the pip this many frames late (negative = early)
@@ -49,15 +83,31 @@ def make_dialogue(seed: int = 1, pip_offset_frames: int = 0, clip_line: int | No
     n_lines:          only use the first n lines (shorter file)
     gain_db:          level change after normalising to -23 LUFS
     blip_at_s:        a short click at this position (e.g. before FFOA)
+    kind:             DX (dialogue), MX (music) or FX (effects)
+    drop_line:        1-based line number left out (a line that never made it into the mix)
+    walla:            (start_s, end_s) of background voices mixed in (e.g. walla left in a music or effects stem)
     """
     rng = np.random.default_rng(seed)
     lines = LINES[:n_lines] if n_lines else LINES
     length = LENGTH_S if not n_lines else lines[-1][0] + lines[-1][1] + 2.0
     out = np.zeros(int(length * SR))
-    for start, dur in lines:
-        seg = _line(dur, rng)
-        i = int(start * SR)
-        out[i:i + len(seg)] += seg
+    if kind == "DX":
+        for k, (start, dur) in enumerate(lines, 1):
+            seg = _line(dur, rng)
+            if k == drop_line:
+                continue
+            i = int(start * SR)
+            out[i:i + len(seg)] += seg
+    else:
+        ffoa = int(8.0 * SR)
+        bed = _music(len(out) - ffoa, rng) if kind == "MX" else _effects(len(out) - ffoa, rng)
+        out[ffoa:] += bed
+    if walla:
+        a, b = walla
+        for _ in range(3):                                           # a few overlapping voices
+            seg = 0.5 * _line(b - a, rng)
+            i = int(a * SR)
+            out[i:i + len(seg)] += seg * (1 if kind == "DX" else 1.5)
     out += rng.standard_normal(len(out)) * 10 ** (-75 / 20)         # room tone, about -75 dBFS
     meter = pyloudnorm.Meter(SR)
     out = pyloudnorm.normalize.loudness(out, meter.integrated_loudness(out), -23.0)
@@ -110,11 +160,14 @@ TITLE = "TEST"
 #     still clips, and adds a click before FFOA              -> Redelivery: fixed / still present / new
 #   GER producer: 3 of 4 rejects are sync pip                -> Scorecard flags sync training
 #   SPC R2 FX exported 16-bit                                -> Format reject
+#   SPC R3 FX has walla left in it                           -> voice marker for the load
+#   GER R3 DX dropped line 3, which an editor note covers    -> Noted content missing
 def _plan() -> list[tuple[str, str, dict, str]]:
     plan = []
 
     def add(terr, reel, stem, producer, version=1, stage="PMX", subtype="PCM_24", **opts):
         name = f"{TITLE}_{terr}_R{reel}_{stem}_{stage}_v{version:02d}.wav"
+        opts.setdefault("kind", stem if stem in ("MX", "FX") else "DX")
         plan.append((name, producer, opts, subtype))
 
     # Spain: Ana does dialogue, Sam does music and effects
@@ -123,7 +176,8 @@ def _plan() -> list[tuple[str, str, dict, str]]:
     add("SPC", 2, "DX", "Ana Ortega")
     for reel in (1, 2, 3):
         add("SPC", reel, "MX", "Sam Patel")
-        add("SPC", reel, "FX", "Sam Patel", subtype="PCM_16" if reel == 2 else "PCM_24")
+        add("SPC", reel, "FX", "Sam Patel", subtype="PCM_16" if reel == 2 else "PCM_24",
+            **({"walla": (12.0, 15.0)} if reel == 3 else {}))
     # France: Lucie, all clean, but R2 FX sent twice as v02
     for reel in (1, 2, 3):
         for stem in ("DX", "MX"):
@@ -132,7 +186,8 @@ def _plan() -> list[tuple[str, str, dict, str]]:
     add("FRA", 2, "FX", "Lucie Martin", version=2, stage="PMR")
     # Germany: Jonas, mostly sync problems
     issues = {(1, "DX"): {"pip_offset_frames": 2}, (2, "DX"): {"pip_offset_frames": -1},
-              (3, "MX"): {"pip_offset_frames": 4}, (2, "FX"): {"gain_db": 2.0}}
+              (3, "MX"): {"pip_offset_frames": 4}, (2, "FX"): {"gain_db": 2.0},
+              (3, "DX"): {"drop_line": 3}}
     for reel in (1, 2, 3):
         for stem in ("DX", "MX", "FX"):
             add("GER", reel, stem, "Jonas Weber", **issues.get((reel, stem), {}))
@@ -144,8 +199,19 @@ def _plan() -> list[tuple[str, str, dict, str]]:
 BATCH_PLAN = _plan()
 
 
+# Editor notes for the demo batch. Line timings: line 2 runs 11.2-13.2 s, line 3 14.0-16.8 s,
+# line 4 17.6-19.4 s into each reel.
+DEMO_NOTES = [
+    ("reel", "timecode", "type", "note", "stem", "territory"),
+    ("1", "01:00:11:12", "off-screen line", "Guard calls out from behind the door", "DX", ""),
+    ("2", "02:00:17:18", "breath", "Breath before the reply must stay", "DX", ""),
+    ("3", "03:00:14:12", "off-screen line", "Radio voice under the music: easy to miss", "DX", ""),
+]
+
+
 def write_demo_batch(folder: str | Path, n_lines: int = 4) -> tuple[list[Path], Path]:
-    """Write the batch WAVs plus producers.csv into `folder`. Returns (wav paths, csv path)."""
+    """Write the batch WAVs plus producers.csv and editor_notes.csv into `folder`.
+    Returns (wav paths, producers csv path)."""
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     paths = []
@@ -161,4 +227,6 @@ def write_demo_batch(folder: str | Path, n_lines: int = 4) -> tuple[list[Path], 
         for name, producer, _, _ in BATCH_PLAN:
             if producer:
                 w.writerow([name, producer])
+    with open(folder / "editor_notes.csv", "w", newline="") as fh:
+        csv.writer(fh).writerows(DEMO_NOTES)
     return paths, csv_path

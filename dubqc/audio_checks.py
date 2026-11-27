@@ -105,7 +105,7 @@ def check_loudness(data: np.ndarray, sr: int, spec: dict) -> tuple[list[Issue], 
             expected=f"{target} LUFS", found="silence",
             fix="Check the right stem was exported and the tracks weren't muted.",
         ))
-    elif abs(lufs - target) > tol:
+    elif target is not None and abs(lufs - target) > tol:
         diff = target - lufs
         issues.append(Issue(
             check="Loudness", code="LOUDNESS", severity=CRITICAL,
@@ -115,7 +115,7 @@ def check_loudness(data: np.ndarray, sr: int, spec: dict) -> tuple[list[Issue], 
             fix=f"Overall level needs about {diff:+.1f} dB. Check it against the original version's "
                 "dialogue level before just applying gain: a big difference usually means a mix problem.",
         ))
-    if tp > ceiling:
+    if ceiling is not None and tp > ceiling:
         issues.append(Issue(
             check="True peak", code="TRUE PEAK", severity=CRITICAL,
             seconds=tp_pos, timecode=_tc(tp_pos, spec),

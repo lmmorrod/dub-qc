@@ -17,8 +17,20 @@ format:
   channels: 1
 
 naming:
-  # <TITLE>_<TERR>_<REEL>_<STEM>_<STAGE>_v<NN>.wav  e.g. TEST_SPC_R1_DX_PMX_v01.wav
-  pattern: '^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|MX|FX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$'
+  # <TITLE>_<TERR>_<REEL>_<STEM>_<STAGE>[_<VERSION>]_v<NN>.wav
+  #   e.g. TEST_SPC_R1_DX_PMX_v01.wav, TEST_SPC_CONT_DX_PMR_R128_v01.wav
+  # REEL: R1, R2... or CONT (continuous).  STAGE: RAW, PMX, PMR or FSS.
+  pattern: '^[A-Z0-9]+_[A-Z]{3}_(R\d+|CONT)_(DX|MX|FX|ME|VOX)_(RAW|PMX|PMR|FSS)(_[A-Z0-9]{2,8})?_v\d{2}\.wav$'
+
+# Delivery versions. A file picks one from its name (..._PMR_R128_v01.wav); files without a
+# version code use the limits above. Example values: set these to your client's delivery spec.
+versions:
+  TH:   {name: Theatrical, loudness: {integrated_lufs: null, true_peak_dbtp: -1}}
+  NF:   {name: Nearfield, loudness: {integrated_lufs: -27, tolerance_lu: 2, true_peak_dbtp: -2}}
+  R128: {name: Broadcast (EBU R128), loudness: {integrated_lufs: -23, tolerance_lu: 1, true_peak_dbtp: -1}}
+
+# Timecode layout for continuous (non-reeled) files, named CONT
+continuous: {session_start: '00:59:50:00', pip: '00:59:58:00', ffoa: '01:00:00:00'}
 
 # Defaults for every reel...
 reel:
@@ -49,3 +61,10 @@ noise:
 
 redelivery:
   match_tolerance_s: 1.0   # a clip in v02 within 1 s of one in v01 counts as the same clip
+
+voice_in_me:
+  min_score: 0.72          # how speech-like a passage must be (0-1) to get a voice marker
+  min_duration_s: 1.0
+
+notes:
+  min_level_dbfs: -45      # a noted spot quieter than this counts as missing

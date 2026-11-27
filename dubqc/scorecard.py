@@ -28,6 +28,7 @@ UNASSIGNED = "Unassigned"
 AREAS = {
     "Loudness": "loudness", "True peak": "loudness", "Pip": "sync pip", "Clipping": "clipping",
     "Format": "export format", "Naming": "file naming", "Noise": "noise",
+    "Editor notes": "missing lines", "Music & effects": "voice in music and effects",
 }
 ACTIONS = {
     "sync pip": "sync training needed",
@@ -36,11 +37,13 @@ ACTIONS = {
     "export format": "share the export settings checklist",
     "file naming": "resend the naming convention",
     "noise": "check the recording environment",
+    "missing lines": "check the script and editor notes before printing",
+    "voice in music and effects": "review the voice markers",
 }
 STRENGTH_ORDER = ["loudness", "sync pip", "clipping", "noise", "export format", "file naming"]
 # When two areas account for the same number of rejects, blame the likely root cause first:
 # a clipped line also fails loudness and true peak, so clipping wins over loudness.
-ROOT_CAUSE_ORDER = ["clipping", "sync pip", "export format", "file naming", "loudness", "noise"]
+ROOT_CAUSE_ORDER = ["clipping", "sync pip", "missing lines", "export format", "file naming", "loudness", "noise"]
 
 
 def load_producers(source: str | Path | None) -> dict[str, str]:
