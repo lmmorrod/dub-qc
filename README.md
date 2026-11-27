@@ -2,7 +2,7 @@
 
 **Delivery QC for dubbed dialogue.**
 
-Dub QC runs the technical QC on a dubbed film's audio at every stage, from raw dialogue to final deliverables. It flags every problem with a timecode, tracks what's still outstanding across territories, versions and redeliveries, and tells whoever is doing the QC pass exactly where to listen.
+Dub QC checks dubbed audio deliveries automatically and flags errors with timecodes. It's designed to run alongside a manual listen-through, with a QC checklist and a delivery-tracking spreadsheet. It runs the technical checks at every stage, from raw dialogue to final deliverables, keeps track of what's still outstanding across territories, versions and redeliveries, and points whoever is doing the listen-through to exactly where to listen.
 
 ![Dub QC report for a 3-territory batch: delivery status by territory, listening checklist, manifest grid and redelivery check](docs/screenshots/report_top.png)
 
