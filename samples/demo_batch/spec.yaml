@@ -1,0 +1,51 @@
+name: Demo multi-territory delivery
+
+# What should arrive: every territory x reel x stem
+manifest:
+  territories: [SPC, FRA, GER]
+  reels: [1, 2, 3]
+  stems: [DX, MX, FX]
+
+loudness:
+  integrated_lufs: -23
+  tolerance_lu: 1
+  true_peak_dbtp: -1
+
+format:
+  sample_rate: 48000
+  bit_depth: 24
+  channels: 1
+
+naming:
+  # <TITLE>_<TERR>_<REEL>_<STEM>_<STAGE>_v<NN>.wav  e.g. TEST_SPC_R1_DX_PMX_v01.wav
+  pattern: '^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|MX|FX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$'
+
+# Defaults for every reel...
+reel:
+  number: 1
+  fps: 24
+  session_start: '01:00:00:00'
+  pip: '01:00:06:00'
+  ffoa: '01:00:08:00'
+
+# ...and each reel's own session timecodes (reel N starts at hour N)
+reels:
+  1: {session_start: '01:00:00:00', pip: '01:00:06:00', ffoa: '01:00:08:00'}
+  2: {session_start: '02:00:00:00', pip: '02:00:06:00', ffoa: '02:00:08:00'}
+  3: {session_start: '03:00:00:00', pip: '03:00:06:00', ffoa: '03:00:08:00'}
+
+pip:
+  frequency_hz: 1000
+  search_window_s: 1.5
+  tolerance_frames: 0
+  min_level_dbfs: -40
+
+clipping:
+  threshold: 0.999
+  min_consecutive: 3
+
+noise:
+  max_floor_dbfs: -60
+
+redelivery:
+  match_tolerance_s: 1.0   # a clip in v02 within 1 s of one in v01 counts as the same clip
