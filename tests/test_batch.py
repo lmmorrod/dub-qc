@@ -7,6 +7,7 @@ import pytest
 from dubqc.batch import analyse, run_batch
 from dubqc.demo import BATCH_PLAN, write_demo_batch
 from dubqc.manifest import check_manifest, latest_versions
+from dubqc.notes import load_notes
 from dubqc.models import CRITICAL, WARNING, FileResult, Issue
 from dubqc.redelivery import FIXED, NEW, STILL_PRESENT, compare, find_redeliveries, load_baseline
 from dubqc.report import to_html, to_json, write_reports
@@ -163,7 +164,8 @@ def test_redelivery_against_baseline_report(tmp_path):
 def demo_batch(tmp_path_factory):
     folder = tmp_path_factory.mktemp("batch")
     paths, csv_path = write_demo_batch(folder)
-    return run_batch(paths, SPEC, producers=load_producers(csv_path))
+    return run_batch(paths, SPEC, producers=load_producers(csv_path),
+                     notes=load_notes(folder / "editor_notes.csv"))
 
 
 def test_sample_producers_file_matches_demo():
@@ -192,6 +194,14 @@ def test_demo_batch_end_to_end(demo_batch):
     ger_r2 = next(f for f in b.files if f.file == name("GER", 2, "DX"))
     assert next(i for i in ger_r2.issues if i.code == "PIP OFFSET").timecode == "02:00:05:23"
     assert not b.passed
+
+    # M&E marker pass finds the walla left in SPC R3 FX, and only there
+    voice = [(f.file, i.timecode) for f in b.files for i in f.issues if i.code == "VOICE IN M&E"]
+    assert voice and all(f == name("SPC", 3, "FX") for f, _ in voice)
+    # the note on R3's off-screen line catches the line GER dropped
+    ger_r3 = next(f for f in b.files if f.file == name("GER", 3, "DX"))
+    assert "NOTED CONTENT MISSING" in {i.code for i in ger_r3.issues}
+    assert all(n["status"] == "Present" for f in b.files if f.file != ger_r3.file for n in f.notes)
 
 
 def test_report_has_new_sections(demo_batch):
