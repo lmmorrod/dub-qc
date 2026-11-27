@@ -18,11 +18,12 @@ SEVERITIES = [CRITICAL, WARNING, INFO]
 
 def _as_batch(results, spec) -> BatchResult:
     """Accept a BatchResult, or a plain list of FileResults (single-file use)."""
-    return results if isinstance(results, BatchResult) else analyse(list(results), spec)
+    # Checked by shape rather than isinstance, so a result kept across a code reload still works.
+    return results if hasattr(results, "current_files") else analyse(list(results), spec)
 
 
 def overall_pass(results) -> bool:
-    if isinstance(results, BatchResult):
+    if hasattr(results, "current_files"):
         return results.passed
     return all(r.passed for r in results)
 
