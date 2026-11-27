@@ -1,4 +1,4 @@
-"""Tests for the workflow features: delivery versions, stage-aware checks, M&E marker pass, editor notes."""
+"""Tests for the workflow features: delivery versions, stage-aware checks, voice markers in music and effects, editor notes."""
 
 import csv
 from pathlib import Path
@@ -116,11 +116,11 @@ def test_checklists_by_stage_and_stem():
     dx = checklist_for(SPEC, "PMX", "DX")
     assert any("in sync with picture" in i for i in dx) and any("off-screen" in i for i in dx)
     fx = checklist_for(SPEC, "PMX", "FX")
-    assert any(i.startswith("Marker pass") for i in fx)
-    assert not any("dialogue present" in i for i in fx)          # dialogue items stay off M&E stems
+    assert any(i.startswith("Mark any voice content") for i in fx)
+    assert not any("dialogue present" in i for i in fx)          # dialogue items stay off music and effects stems
 
 
-# ---------------------------------------------------------------- M&E marker pass
+# ---------------------------------------------------------------- voice markers in music and effects
 
 @pytest.mark.parametrize("seed", [1, 2, 3, 4])
 def test_music_and_effects_are_not_flagged(seed):
@@ -130,7 +130,7 @@ def test_music_and_effects_are_not_flagged(seed):
 
 def test_walla_in_effects_is_marked(tmp_path):
     r = check_file(write(tmp_path, "TEST_SPC_R1_FX_PMX_v01.wav", kind="FX", walla=(12.0, 15.0)), SPEC)
-    (voice,) = [i for i in r.issues if i.code == "VOICE IN M&E"]
+    (voice,) = [i for i in r.issues if i.code == "VOICE IN MUSIC/EFFECTS"]
     assert voice.severity == "Info" and 11.0 <= voice.seconds <= 13.0
     assert r.passed                                               # a marker, not a fault
 
@@ -170,5 +170,5 @@ def test_report_shows_checklist_and_notes(tmp_path):
     paths = [write(tmp_path, "TEST_SPC_R1_DX_PMX_v01.wav"), write(tmp_path, "TEST_SPC_R1_FX_PMX_v01.wav", kind="FX")]
     html = to_html(run_batch(paths, SPEC, notes=notes), SPEC, "Test")
     for text in ("What to listen for", "Already checked automatically", "Editor notes",
-                 "Guard calls out from behind the door", "Marker pass"):
+                 "Guard calls out from behind the door", "Mark any voice content"):
         assert text in html, text

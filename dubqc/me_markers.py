@@ -1,4 +1,4 @@
-"""M&E marker pass: find voice content (walla, breaths, efforts, stray dialogue) in music & effects stems.
+"""Voice markers for music and effects: find voice content (walla, breaths, efforts, stray dialogue) in music & effects stems.
 
 Speech has a tell-tale rhythm: its level in the voice band (roughly 300 Hz to 3.4 kHz) rises
 and falls 3 to 8 times a second, once per syllable. Music and effects rarely pulse at exactly
@@ -76,7 +76,7 @@ def check_voice_in_me(data: np.ndarray, sr: int, spec: dict) -> tuple[list[Issue
         tc = file_seconds_to_tc(p["start_s"], reel["fps"], reel["session_start"])
         end_tc = file_seconds_to_tc(p["end_s"], reel["fps"], reel["session_start"])
         issues.append(Issue(
-            check="M&E markers", code="VOICE IN M&E", severity=INFO,
+            check="Music & effects", code="VOICE IN MUSIC/EFFECTS", severity=INFO,
             seconds=p["start_s"], timecode=tc,
             message=f"Possible voice content (walla, breath, effort or dialogue) from {tc} to {end_tc}.",
             expected="music and effects only, or voice content marked for the load",

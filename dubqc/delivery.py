@@ -130,7 +130,7 @@ def load_report(result: FileResult, spec: dict) -> tuple[str, str]:
 
     voice = m.get("me_voice_markers", [])
     if voice:
-        lines.append(f"{len(voice)} passage(s) of possible voice content in the M&E at {', '.join(voice[:5])}: "
+        lines.append(f"{len(voice)} passage(s) of possible voice content in the music and effects at {', '.join(voice[:5])}: "
                      "listen and mark for the load.")
     missing_notes = [n for n in result.notes if n["status"] == "Silent"]
     if missing_notes:

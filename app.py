@@ -124,7 +124,7 @@ if run:
                 continue
             title = " · ".join(x for x in (entry_name(spec, "stages", stage) if stage else "",
                                            entry_name(spec, "stems", stem) if stem else "") if x)
-            st.subheader(f"{title.capitalize()} ({len(files)} files)")
+            st.subheader(f"{title[:1].upper() + title[1:]} ({len(files)} files)")
             for item in items:
                 st.checkbox(item, key=f"chk-{stage}-{stem}-{item}")
 

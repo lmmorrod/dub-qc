@@ -8,16 +8,9 @@ Dub QC runs the technical QC on a dubbed film's audio at every stage, from raw d
 
 ## The problem
 
-Every dubbed version of a film passes through editorial and mixing several times before it's delivered:
+A dubbed version of a film is checked several times before it's delivered. Each territory sends in its recorded dialogue, which is prepared and mixed. The mix is then checked, fixed and checked again as it moves from premix to printmaster to a final QC. Finally it's turned into every version the release needs (theatrical, nearfield, IMAX, Atmos, broadcast R128, streaming), reeled or continuous, each with its own spec and timecode layout.
 
-1. **Ingest.** Each territory sends its raw dialogue recordings.
-2. **Load.** Editors prepare the dialogue for the mix: tracklay, clean-up, missing-line (pickup) requests, and a load report back to the territory.
-3. **Premix (PMX):** mix → QC → fixes.
-4. **Printmaster (PMR):** mix → QC → fixes.
-5. **Final QC (FSS)** → fixes.
-6. **Deliverables.** The finished mix is made into every version the release needs (stereo, 5.1, 7.1, IMAX, Atmos, nearfield, broadcast R128), reeled for cinema or continuous for streaming. Each version has its own spec and timecode layout.
-
-The music and effects (M&E) stems are QC'd too: a technical pass for faults, and a marker pass noting anything the dialogue editors need to know, such as walla, breaths or efforts already in the M&E.
+The music and effects stems need checking too: for technical faults, and for any voice content (walla, breaths, efforts) that the dialogue editors need to know about.
 
 That's a lot of passes, files and formats, and every QC pass depends on someone listening for everything and knowing what to look for. Dub QC runs the technical checks automatically at every stage, points the QCer to exactly where to listen, and keeps the notes that matter attached to the right timecodes from one pass to the next.
 
@@ -39,9 +32,9 @@ Every file gets a rating (Good / Acceptable with notes / Reject) and a short loa
 ### Built around the workflow
 
 - **Delivery versions.** One spec holds a profile per version (theatrical, nearfield, broadcast R128 and so on), each with its own loudness, peak and format limits. Each file is checked against the version in its name, so the same mix can pass as theatrical and fail as R128.
-- **Stage-aware QC.** Raw dialogue, premix, printmaster and FSS each run the checks that make sense at that stage (raw dialogue isn't loudness-checked, for example). Dialogue and M&E stems get different checks too.
+- **Stage-aware QC.** Raw dialogue, premix (PMX), printmaster (PMR) and final QC (FSS) each run the checks that make sense at that stage (raw dialogue isn't loudness-checked, for example). Dialogue and music and effects stems get different checks too.
 - **"What to listen for."** Each report lists the listening checks for that pass, by stage and stem (e.g. *"Every line present, including off-screen and background lines"*), alongside what Dub QC has already checked automatically.
-- **M&E marker pass.** Music and effects stems get the technical checks plus a voice detector that flags likely walla, breaths, efforts or stray dialogue as timecoded markers, so dialogue editors don't double them with the dub. It picks up the syllable-rate rhythm of speech, which music and effects rarely have.
+- **Voice markers in music and effects.** Music and effects stems get the technical checks plus a voice detector that flags likely walla, breaths, efforts or stray dialogue as timecoded markers, so dialogue editors don't double them with the dub. It picks up the syllable-rate rhythm of speech, which music and effects rarely have.
 - **Editor notes.** Timecoded notes in a simple CSV (*"off-screen line: guard calls out from behind the door"*). They carry into every later pass: each note is checked in every file it applies to, and flagged if the noted line has gone quiet.
 
 ### Across a whole delivery
@@ -54,7 +47,7 @@ Every file gets a rating (Good / Acceptable with notes / Reject) and a short loa
 
 - **HTML report:** summary, listening checklist, manifest grid, redelivery check, editor notes, sortable scorecard, issue table with suggested fixes, and waveforms with issue markers.
 - **JSON:** machine-readable, and usable as the baseline for the next redelivery check.
-- **Marker list:** tab-separated timecode / name / comment, covering QC issues, M&E markers and editor notes, for dropping into an editing session.
+- **Marker list:** tab-separated timecode / name / comment, covering QC issues, voice markers and editor notes, for dropping into an editing session.
 
 <details>
 <summary>Full report</summary>

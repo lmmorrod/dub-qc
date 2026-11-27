@@ -63,7 +63,7 @@ redelivery:
   match_tolerance_s: 1.0   # a clip in v02 within 1 s of one in v01 counts as the same clip
 
 voice_in_me:
-  min_score: 0.72          # how speech-like a passage must be (0-1) to get an M&E marker
+  min_score: 0.72          # how speech-like a passage must be (0-1) to get a voice marker
   min_duration_s: 1.0
 
 notes:

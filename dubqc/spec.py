@@ -65,11 +65,11 @@ DEFAULT_SPEC: dict = {
         **{code: {"name": name, "checks": [c for c in ALL_CHECKS if c != "noise"],
                   "stage_checklist": False,          # the stage checklists are about dialogue
                   "checklist": [
-                      "Technical pass: dropouts, clicks, distortion, sync",
-                      "Marker pass: note any voice content (walla, breaths, efforts) so dialogue "
+                      "Listen for dropouts, clicks, distortion and sync problems",
+                      "Mark any voice content (walla, breaths, efforts) so dialogue "
                       "editors don't double it with the dub",
                   ]}
-           for code, name in (("MX", "music"), ("FX", "effects"), ("ME", "M&E"))},
+           for code, name in (("MX", "music"), ("FX", "effects"), ("ME", "music and effects"))},
     },
     "stages": {
         "RAW": {"name": "raw dialogue", "checks": ["naming", "format", "clipping", "pip", "noise"],
@@ -81,7 +81,7 @@ DEFAULT_SPEC: dict = {
         "PMX": {"name": "premix", "checklist": [
             "All dialogue present and in sync with picture",
             "Treatments (phone, radio, reverb) match the original",
-            "No doubling between dub dialogue and voice left in the M&E",
+            "No doubling between dub dialogue and voice left in the music and effects",
             "Walla and efforts where the original has them",
         ]},
         "PMR": {"name": "printmaster", "checklist": [
@@ -89,7 +89,7 @@ DEFAULT_SPEC: dict = {
             "Nothing new introduced since the premix",
             "Dialogue sits clearly over music and effects",
         ]},
-        "FSS": {"name": "FSS", "checklist": [
+        "FSS": {"name": "final QC", "checklist": [
             "Every printmaster QC note has been fixed",
             "Final top-to-tail listen: no dropouts, clicks or missing lines",
             "Pips present and in sync; nothing before first frame of action",
@@ -104,7 +104,7 @@ DEFAULT_SPEC: dict = {
     "continuous": {"session_start": "00:59:50:00", "pip": "00:59:58:00", "ffoa": "01:00:00:00"},
     # Optional per-reel timecodes, e.g. {2: {session_start: '02:00:00:00', pip: ..., ffoa: ...}}
     "reels": {},
-    # M&E marker pass: how sure the detector must be that a passage is voice, and how long it must last
+    # Voice markers in music and effects: how sure the detector must be that a passage is voice, and how long it must last
     "voice_in_me": {"min_score": 0.72, "min_duration_s": 1.0, "min_level_dbfs": -45},
     # Editor notes: how loud the audio at a noted timecode must be to count as present
     "notes": {"min_level_dbfs": -45, "default_duration_s": 1.0},
@@ -167,7 +167,7 @@ def checks_for(spec: dict, stage: str | None, stem: str | None) -> list[str]:
     """Which checks run on a file: the checks allowed for its stage AND for its stem."""
     stage_checks = entry(spec, "stages", stage).get("checks", ALL_CHECKS) if stage else ALL_CHECKS
     # If a spec names a stem without listing its checks, fall back to the built-in set for that
-    # stem, so e.g. dialogue is never run through the "voice in M&E" detector.
+    # stem, so e.g. dialogue is never run through the "voice in music and effects" detector.
     builtin = DEFAULT_SPEC["stems"].get(stem or "DX", DEFAULT_SPEC["stems"]["DX"])
     stem_checks = entry(spec, "stems", stem).get("checks", builtin["checks"]) if stem else builtin["checks"]
     return [c for c in ALL_CHECKS if c in stage_checks and c in stem_checks]

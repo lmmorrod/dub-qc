@@ -85,7 +85,7 @@ def make_dialogue(seed: int = 1, pip_offset_frames: int = 0, clip_line: int | No
     blip_at_s:        a short click at this position (e.g. before FFOA)
     kind:             DX (dialogue), MX (music) or FX (effects)
     drop_line:        1-based line number left out (a line that never made it into the mix)
-    walla:            (start_s, end_s) of background voices mixed in (e.g. walla left in an M&E)
+    walla:            (start_s, end_s) of background voices mixed in (e.g. walla left in a music or effects stem)
     """
     rng = np.random.default_rng(seed)
     lines = LINES[:n_lines] if n_lines else LINES
@@ -160,7 +160,7 @@ TITLE = "TEST"
 #     still clips, and adds a click before FFOA              -> Redelivery: fixed / still present / new
 #   GER producer: 3 of 4 rejects are sync pip                -> Scorecard flags sync training
 #   SPC R2 FX exported 16-bit                                -> Format reject
-#   SPC R3 FX has walla left in it                           -> M&E marker for the load
+#   SPC R3 FX has walla left in it                           -> voice marker for the load
 #   GER R3 DX dropped line 3, which an editor note covers    -> Noted content missing
 def _plan() -> list[tuple[str, str, dict, str]]:
     plan = []

@@ -195,8 +195,8 @@ def test_demo_batch_end_to_end(demo_batch):
     assert next(i for i in ger_r2.issues if i.code == "PIP OFFSET").timecode == "02:00:05:23"
     assert not b.passed
 
-    # M&E marker pass finds the walla left in SPC R3 FX, and only there
-    voice = [(f.file, i.timecode) for f in b.files for i in f.issues if i.code == "VOICE IN M&E"]
+    # The voice markers find the walla left in SPC R3 FX, and only there
+    voice = [(f.file, i.timecode) for f in b.files for i in f.issues if i.code == "VOICE IN MUSIC/EFFECTS"]
     assert voice and all(f == name("SPC", 3, "FX") for f, _ in voice)
     # the note on R3's off-screen line catches the line GER dropped
     ger_r3 = next(f for f in b.files if f.file == name("GER", 3, "DX"))

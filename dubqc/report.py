@@ -402,7 +402,7 @@ def _load_reports(batch: BatchResult, spec: dict) -> str:
 
 
 CHECK_NAMES = {"naming": "file naming", "format": "format", "loudness": "loudness", "true_peak": "true peak",
-               "clipping": "clipping", "pip": "sync pip", "noise": "noise floor", "voice_in_me": "voice in M&E"}
+               "clipping": "clipping", "pip": "sync pip", "noise": "noise floor", "voice_in_me": "voice in music/effects"}
 
 
 def _checklist(batch: BatchResult, spec: dict) -> str:
@@ -420,7 +420,7 @@ def _checklist(batch: BatchResult, spec: dict) -> str:
         title = " · ".join(x for x in (entry_name(spec, "stages", stage) if stage else "",
                                        entry_name(spec, "stems", stem) if stem else "") if x)
         done = ", ".join(CHECK_NAMES[c] for c in files[0].checks_run)
-        cards.append(f"<div class='card'><h3>{escape(title.capitalize())} <span class='muted'>{len(files)} file(s)"
+        cards.append(f"<div class='card'><h3>{escape(title[:1].upper() + title[1:])} <span class='muted'>{len(files)} file(s)"
                      f"</span></h3><ul class='check'>" + "".join(f"<li>{escape(i)}</li>" for i in items) +
                      f"</ul><p class='muted' style='margin:8px 0 0'>Already checked automatically: {escape(done)}.</p></div>")
     if not cards:
