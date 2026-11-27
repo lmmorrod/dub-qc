@@ -9,27 +9,38 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
+from . import brand
+from .batch import BatchResult, analyse
 from .models import CRITICAL, INFO, WARNING, FileResult
 
 SEVERITIES = [CRITICAL, WARNING, INFO]
 
 
-def overall_pass(results: list[FileResult]) -> bool:
+def _as_batch(results, spec) -> BatchResult:
+    """Accept a BatchResult, or a plain list of FileResults (single-file use)."""
+    return results if isinstance(results, BatchResult) else analyse(list(results), spec)
+
+
+def overall_pass(results) -> bool:
+    if isinstance(results, BatchResult):
+        return results.passed
     return all(r.passed for r in results)
 
 
-def to_json(results: list[FileResult], spec: dict, project: str) -> dict:
+def to_json(results, spec: dict, project: str) -> dict:
+    batch = _as_batch(results, spec)
     return {
         "project": project,
         "spec": spec.get("name"),
         "generated": datetime.now().isoformat(timespec="seconds"),
-        "overall": "PASS" if overall_pass(results) else "FAIL",
-        "files": [r.to_dict() for r in results],
+        "overall": "PASS" if batch.passed else "FAIL",
+        **batch.to_dict(),
     }
 
 
-def write_reports(results: list[FileResult], spec: dict, out_dir: str | Path = "reports",
+def write_reports(results, spec: dict, out_dir: str | Path = "reports",
                   project: str = "Dub QC") -> dict[str, Path]:
+    batch = _as_batch(results, spec)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -38,9 +49,9 @@ def write_reports(results: list[FileResult], spec: dict, out_dir: str | Path = "
         "json": out_dir / f"{stamp}_report.json",
         "markers": out_dir / f"{stamp}_markers.txt",
     }
-    paths["html"].write_text(to_html(results, spec, project), encoding="utf-8")
-    paths["json"].write_text(json.dumps(to_json(results, spec, project), indent=2, default=str), encoding="utf-8")
-    write_markers(results, paths["markers"])
+    paths["html"].write_text(to_html(batch, spec, project), encoding="utf-8")
+    paths["json"].write_text(json.dumps(to_json(batch, spec, project), indent=2, default=str), encoding="utf-8")
+    write_markers(batch.files, paths["markers"])
     return paths
 
 
@@ -57,56 +68,93 @@ def write_markers(results: list[FileResult], path: Path) -> None:
 
 # ---------------------------------------------------------------- HTML
 
-CSS = """
-:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e1dc;--wave:#9aa3ad;
---crit:#c62828;--crit-bg:#fdecea;--warn:#b26a00;--warn-bg:#fff4e0;--info:#1f5f9e;--info-bg:#e8f1fb;
---pass:#2e7d32;--pass-bg:#e8f5e9;--accent:#3b3b98}
-@media (prefers-color-scheme:dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#a0a0a8;--line:#33333a;
---wave:#5d6670;--crit:#ff6b6b;--crit-bg:#3a1c1c;--warn:#ffb74d;--warn-bg:#3a2c14;--info:#7ab8ff;--info-bg:#16283d;
---pass:#7bd88f;--pass-bg:#173020;--accent:#a5a5ff}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 60px}
-h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:32px 0 10px}
-.meta{color:var(--muted)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
-.head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
-.verdict{font-weight:700;font-size:20px;padding:10px 22px;border-radius:8px;letter-spacing:.04em}
-.PASS{background:var(--pass-bg);color:var(--pass)}.FAIL{background:var(--crit-bg);color:var(--crit)}
-.pill{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
-.Critical{background:var(--crit-bg);color:var(--crit)}.Warning{background:var(--warn-bg);color:var(--warn)}
-.Info{background:var(--info-bg);color:var(--info)}
-.Good{background:var(--pass-bg);color:var(--pass)}.Reject{background:var(--crit-bg);color:var(--crit)}
-.Acceptable{background:var(--warn-bg);color:var(--warn)}
-.scroll{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
-td.tc,td.num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}
-.counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.count{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.count b{display:block;font-size:24px}
-.fname{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;overflow-wrap:anywhere}
-td.fname{white-space:nowrap}
-table.files{min-width:820px}
-.wave{width:100%;height:90px;display:block;margin-top:8px}
-.legend{font-size:12px;color:var(--muted)}
-.fix{color:var(--muted);font-size:12px}
-table.issues{min-width:860px}
-table.issues td:nth-child(5){width:38%}
-tr.group td{background:var(--bg);padding-top:10px}
+CSS = f"""
+:root{{--slate:{brand.SLATE};--slate-2:{brand.SLATE_2};--bg:{brand.BODY};--card:#fff;--ink:{brand.INK};
+--muted:{brand.MUTED};--line:{brand.LINE};--accent:{brand.ACCENT};--accent-soft:{brand.ACCENT_SOFT};--wave:#a3adb8;
+--crit:#c2362b;--crit-bg:#fbe9e7;--warn:#a05d00;--warn-bg:#fdf1dc;--info:#255f99;--info-bg:#e7f0fa;
+--pass:#1f7a4d;--pass-bg:#e3f3ea;--none:#8a949e;--none-bg:#eeece6}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 {brand.FONT_STACK};-webkit-font-smoothing:antialiased}}
+header.brand{{background:var(--slate);color:#fff;border-bottom:3px solid var(--accent)}}
+header.brand .inner{{max-width:1200px;margin:0 auto;padding:22px 16px 20px;display:flex;justify-content:space-between;
+gap:20px;align-items:center;flex-wrap:wrap}}
+.tagline{{color:#9fb0c0;font-size:13px;margin-top:4px}}
+.runinfo{{text-align:right;color:#c9d4de;font-size:13px}}
+.runinfo b{{color:#fff;font-weight:600}}
+.verdict{{display:inline-block;font-weight:700;font-size:15px;padding:6px 16px;border-radius:6px;letter-spacing:.06em;margin-top:6px}}
+.verdict.PASS{{background:#1f7a4d;color:#fff}}.verdict.FAIL{{background:#c2362b;color:#fff}}
+nav.sections{{background:var(--slate-2)}}
+nav.sections .inner{{max-width:1200px;margin:0 auto;padding:8px 16px;display:flex;gap:18px;flex-wrap:wrap}}
+nav.sections a{{color:#c9d4de;text-decoration:none;font-size:13px;font-weight:500}}
+nav.sections a:hover{{color:#5eead4}}
+.wrap{{max-width:1200px;margin:0 auto;padding:8px 16px 60px}}
+h2{{font-size:18px;margin:34px 0 4px;letter-spacing:-.01em}}
+h2+.sub{{color:var(--muted);margin:0 0 12px;font-size:13px}}
+h3{{font-size:15px;margin:0 0 10px}}
+.card{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}}
+.stat{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}}
+.stat .label{{color:var(--muted);font-size:12px;font-weight:500}}
+.stat b{{display:block;font-size:24px;letter-spacing:-.02em}}
+.stat.accent{{border-top:3px solid var(--accent)}}
+ul.summary{{margin:0;padding-left:0;list-style:none}}
+ul.summary li{{padding:7px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline}}
+ul.summary li:last-child{{border-bottom:none}}
+.pill{{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}}
+.Critical,.Reject,.Missing,.FAIL,.New{{background:var(--crit-bg);color:var(--crit)}}
+.Warning,.Acceptable,.Duplicate,.Still{{background:var(--warn-bg);color:var(--warn)}}
+.Info{{background:var(--info-bg);color:var(--info)}}
+.Good,.PASS,.Fixed,.Delivered,.All,.Both{{background:var(--pass-bg);color:var(--pass)}}
+.Passes{{background:var(--accent-soft);color:var(--accent)}}
+.Superseded{{background:var(--none-bg);color:var(--none)}}
+.scroll{{overflow-x:auto}}
+table{{border-collapse:collapse;width:100%;font-size:13px}}
+th,td{{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}}
+th{{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}}
+table.sortable th{{cursor:pointer;user-select:none;white-space:nowrap}}
+table.sortable th::after{{content:" ↕";color:#c3c9cf}}
+table.sortable th[data-dir=asc]::after{{content:" ↑";color:var(--accent)}}
+table.sortable th[data-dir=desc]::after{{content:" ↓";color:var(--accent)}}
+td.tc,td.num{{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}}
+.fname{{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;overflow-wrap:anywhere}}
+td.fname{{white-space:nowrap}}
+table.files{{min-width:900px}} table.issues{{min-width:860px}} table.issues td:nth-child(5){{width:38%}}
+table.scorecard{{min-width:980px}} table.scorecard td:last-child{{min-width:260px}}
+table.scorecard td:first-child{{white-space:nowrap}}
+tr.group td{{background:var(--bg);padding-top:10px}}
+tr.superseded td{{color:var(--muted)}}
+.matrix td,.matrix th{{text-align:center}} .matrix th:first-child,.matrix td:first-child{{text-align:left}}
+.cell{{display:inline-block;min-width:88px;padding:5px 8px;border-radius:6px;font-size:12px;font-weight:600}}
+.cell small{{display:block;font-weight:500;opacity:.8}}
+.terr{{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}}
+.terr .card{{margin:0}}
+.fix,.muted{{color:var(--muted);font-size:12px}}
+.wave{{width:100%;height:80px;display:block;margin-top:8px}}
+details.load{{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 0;padding:10px 16px}}
+details.load summary{{cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap}}
+.rd-head{{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}}
+footer{{color:var(--muted);font-size:12px;margin-top:30px}}
+"""
+
+SORT_JS = """
+document.querySelectorAll('table.sortable').forEach(t=>{const ths=t.tHead.rows[0].cells;
+[...ths].forEach((th,i)=>th.addEventListener('click',()=>{const b=t.tBodies[0],rows=[...b.rows],
+asc=th.dataset.dir!=='asc';[...ths].forEach(h=>h.dataset.dir='');th.dataset.dir=asc?'asc':'desc';
+const v=r=>r.cells[i].dataset.sort??r.cells[i].innerText.trim();
+rows.sort((a,c)=>{const x=v(a),y=v(c),nx=parseFloat(x),ny=parseFloat(y);
+const d=(!isNaN(nx)&&!isNaN(ny))?nx-ny:x.localeCompare(y);return asc?d:-d});rows.forEach(r=>b.appendChild(r))}))});
 """
 
 
 def _pill(text: str, cls: str | None = None) -> str:
-    return f'<span class="pill {escape(cls or text)}">{escape(text)}</span>'
+    return f'<span class="pill {escape((cls or text).split()[0])}">{escape(text)}</span>'
 
 
 def _waveform_svg(r: FileResult, spec: dict) -> str:
     if not r.waveform or not r.duration_s:
         return ""
     from .timecode import tc_to_file_seconds
-    w, h = 1000, 90
+    w, h = 1000, 80
     mid = h / 2
     n = len(r.waveform)
     top = " ".join(f"{i / (n - 1) * w:.1f},{mid - v * (mid - 4):.1f}" for i, v in enumerate(r.waveform))
@@ -114,12 +162,12 @@ def _waveform_svg(r: FileResult, spec: dict) -> str:
     parts = [f'<svg class="wave" viewBox="0 0 {w} {h}" preserveAspectRatio="none" role="img" '
              f'aria-label="Waveform of {escape(r.file)} with issue markers">',
              f'<polygon points="{top} {bottom}" fill="var(--wave)"/>']
-    reel = spec["reel"]
-    for label, tc in (("PIP", reel["pip"]), ("FFOA", reel["ffoa"])):
-        x = tc_to_file_seconds(tc, reel["fps"], reel["session_start"]) / r.duration_s * w
+    reel = r.reel_timecodes or spec["reel"]
+    for label, key in (("PIP", "pip"), ("FFOA", "ffoa")):
+        x = tc_to_file_seconds(reel[key], reel["fps"], reel["session_start"]) / r.duration_s * w
         if 0 <= x <= w:
             parts.append(f'<line x1="{x:.1f}" x2="{x:.1f}" y1="0" y2="{h}" stroke="var(--accent)" '
-                         f'stroke-dasharray="3 3" vector-effect="non-scaling-stroke"><title>{label} {tc}</title></line>')
+                         f'stroke-dasharray="3 3" vector-effect="non-scaling-stroke"><title>{label} {reel[key]}</title></line>')
     colour = {CRITICAL: "var(--crit)", WARNING: "var(--warn)", INFO: "var(--info)"}
     for i in r.issues:
         if i.seconds is None:
@@ -132,87 +180,225 @@ def _waveform_svg(r: FileResult, spec: dict) -> str:
     return "".join(parts)
 
 
-def to_html(results: list[FileResult], spec: dict, project: str = "Dub QC") -> str:
-    verdict = "PASS" if overall_pass(results) else "FAIL"
-    issues = [i for r in results for i in r.issues]
-    by_sev = Counter(i.severity for i in issues)
-    by_check = Counter((i.check, i.severity) for i in issues)
-    checks = sorted({i.check for i in issues})
+def _header(batch: BatchResult, spec: dict, project: str) -> str:
+    verdict = "PASS" if batch.passed else "FAIL"
     now = datetime.now().strftime("%d %b %Y, %H:%M")
+    links = [("summary", "Summary")]
+    if batch.manifest:
+        links.append(("manifest", "Delivery manifest"))
+    if batch.redeliveries:
+        links.append(("redelivery", "Redelivery check"))
+    if any(r["producer"] != "Unassigned" for r in batch.scorecard):
+        links.append(("scorecard", "Producer scorecard"))
+    links += [("files", "Files"), ("issues", "Issues"), ("load", "Load reports")]
+    nav = "".join(f'<a href="#{a}">{t}</a>' for a, t in links)
+    return (f"<header class='brand'><div class='inner'><div>{brand.wordmark_html(30)}"
+            f"<div class='tagline'>{brand.TAGLINE}</div></div>"
+            f"<div class='runinfo'><b>{escape(project)}</b> · {escape(str(spec.get('name')))}<br>"
+            f"{now} · {len(batch.files)} file(s)<br><span class='verdict {verdict}'>{verdict}</span></div>"
+            f"</div></header><nav class='sections'><div class='inner'>{nav}</div></nav>")
 
-    h = [f"<!doctype html><html lang='en'><head><meta charset='utf-8'>"
-         f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-         f"<title>QC Report – {escape(project)}</title><style>{CSS}</style></head><body><div class='wrap'>"]
 
-    # header
-    h.append("<div class='card head'><div>"
-             f"<h1>{escape(project)}: Delivery QC</h1>"
-             f"<div class='meta'>Spec: <b>{escape(str(spec.get('name')))}</b> · {now} · "
-             f"{len(results)} file(s) checked</div></div>"
-             f"<div class='verdict {verdict}'>{verdict}</div></div>")
-
-    # summary counts
-    h.append("<h2>Summary</h2><div class='counts'>")
+def _summary(batch: BatchResult) -> str:
+    current = batch.current_files
+    issues = [i for r in current for i in r.issues]
+    by_sev = Counter(i.severity for i in issues)
+    passing = sum(r.passed for r in current)
+    h = ["<h2 id='summary'>Summary</h2><p class='sub'>Counts cover the latest version of each file; "
+         "earlier versions replaced in this batch are shown as superseded.</p><div class='grid'>"]
+    if batch.manifest:
+        m = batch.manifest
+        h.append(f"<div class='stat accent'><span class='label'>Deliverables in</span>"
+                 f"<b>{m['delivered']}/{m['expected']}</b></div>")
+    h.append(f"<div class='stat accent'><span class='label'>Files passing QC</span><b>{passing}/{len(current)}</b></div>")
     for sev in SEVERITIES:
-        h.append(f"<div class='count'>{_pill(sev)}<b>{by_sev.get(sev, 0)}</b></div>")
+        h.append(f"<div class='stat'>{_pill(sev)}<b>{by_sev.get(sev, 0)}</b></div>")
     h.append("</div>")
-    if checks:
-        h.append("<div class='card scroll'><table><tr><th>Check</th>"
-                 + "".join(f"<th>{s}</th>" for s in SEVERITIES) + "</tr>")
-        for c in checks:
-            h.append(f"<tr><td>{escape(c)}</td>" + "".join(
-                f"<td class='num'>{by_check.get((c, s), 0) or '–'}</td>" for s in SEVERITIES) + "</tr>")
-        h.append("</table></div>")
+    if batch.manifest:
+        h.append("<div class='card'><h3>Delivery status by territory</h3><ul class='summary'>")
+        for t in batch.manifest["territories"]:
+            ok = t["delivered"] == t["expected"] and not t["duplicates"] and not t["unexpected"]
+            h.append(f"<li>{_pill('Complete', 'Good') if ok else _pill('Attention', 'Warning')}"
+                     f"<span><b>{escape(t['summary'])}</b> <span class='muted'>{escape(t['name'])}</span></span></li>")
+        if batch.manifest["unexpected_other"]:
+            n = len(batch.manifest["unexpected_other"])
+            h.append(f"<li>{_pill('Attention', 'Warning')}<span><b>{n} file(s) not on this delivery</b> "
+                     "<span class='muted'>unknown territory or unreadable name</span></span></li>")
+        h.append("</ul></div>")
+    return "".join(h)
 
-    # files
-    h.append("<h2>Files</h2><div class='card scroll'><table class='files'><tr><th>File</th><th>Result</th><th>Format</th>"
-             "<th>Loudness</th><th>True peak</th><th>Clips</th><th>Head pip</th></tr>")
-    for r in results:
+
+def _manifest(batch: BatchResult, spec: dict) -> str:
+    m = batch.manifest
+    if not m:
+        return ""
+    by_file = {r.file: r for r in batch.files}
+    stems = [str(s) for s in spec["manifest"]["stems"]]
+    h = ["<h2 id='manifest'>Delivery manifest</h2><p class='sub'>Expected deliverables from the spec "
+         "against what arrived. Colour shows the latest version's QC result.</p><div class='terr'>"]
+    for t in m["territories"]:
+        h.append(f"<div class='card'><h3>{escape(t['territory'])} <span class='muted'>{escape(t['name'])} · "
+                 f"{t['delivered']}/{t['expected']} delivered</span></h3>"
+                 "<table class='matrix'><tr><th>Reel</th>" + "".join(f"<th>{escape(s)}</th>" for s in stems) + "</tr>")
+        reels = sorted({s["reel"] for s in t["slots"]})
+        for reel in reels:
+            h.append(f"<tr><td><b>R{reel}</b></td>")
+            for slot in (s for s in t["slots"] if s["reel"] == reel):
+                h.append(f"<td>{_slot_cell(slot, by_file)}</td>")
+            h.append("</tr>")
+        h.append("</table>")
+        notes = []
+        for d in t["duplicates"]:
+            notes.append(f"<li><b>{escape(d['slot'])} duplicate:</b> " + ", ".join(
+                f"<span class='fname'>{escape(f)}</span>" for f in d["files"]) +
+                ". Confirm which one is final.</li>")
+        for u in t["unexpected"]:
+            notes.append(f"<li><b>Unexpected:</b> <span class='fname'>{escape(u['file'])}</span> "
+                         f"<span class='muted'>({escape(u['reason'])})</span></li>")
+        if notes:
+            h.append("<ul class='muted' style='margin:10px 0 0;padding-left:18px'>" + "".join(notes) + "</ul>")
+        h.append("</div>")
+    h.append("</div>")
+    if m["unexpected_other"]:
+        h.append("<div class='card'><h3>Not on this delivery</h3><table><tr><th>File</th><th>Group</th><th>Why</th></tr>")
+        for u in m["unexpected_other"]:
+            h.append(f"<tr><td class='fname'>{escape(u['file'])}</td><td>{escape(u['territory'])}</td>"
+                     f"<td>{escape(u['reason'])}</td></tr>")
+        h.append("</table></div>")
+    return "".join(h)
+
+
+def _slot_cell(slot: dict, by_file: dict) -> str:
+    if slot["status"] == "Missing":
+        return "<span class='cell Missing'>Missing</span>"
+    if slot["status"] == "Duplicate":
+        return f"<span class='cell Duplicate'>Duplicate<small>{len(slot['files'])} files</small></span>"
+    r = by_file.get(slot["latest"])
+    version = slot["latest"].rsplit("_", 1)[-1].removesuffix(".wav")
+    rating = r.rating if r else "Delivered"
+    label = {"Acceptable with notes": "Notes"}.get(rating, rating)
+    older = len(slot["files"]) - 1
+    extra = f" · {older} earlier" if older else ""
+    return (f"<span class='cell {escape(rating.split()[0])}' title='{escape(slot['latest'])}'>{escape(label)}"
+            f"<small>{escape(version)}{extra}</small></span>")
+
+
+def _redeliveries(batch: BatchResult) -> str:
+    if not batch.redeliveries:
+        return ""
+    h = ["<h2 id='redelivery'>Redelivery check</h2><p class='sub'>Each new version re-checked and compared "
+         "with the one before it: what got fixed, what's still there, and anything new.</p>"]
+    for rd in batch.redeliveries:
+        c = rd["counts"]
+        h.append(f"<div class='card'><div class='rd-head'><div><span class='fname'>{escape(rd['old_file'])}</span> "
+                 f"→ <span class='fname'>{escape(rd['new_file'])}</span></div><div>"
+                 f"{_pill(rd['verdict'], 'Reject' if rd['verdict'] == 'Still failing' else None)} "
+                 f"<span class='muted'>{c['Fixed']} fixed · {c['Still present']} still present · "
+                 f"{c['New issue']} new</span></div></div>")
+        if rd["rows"]:
+            h.append("<div class='scroll'><table><tr><th>Status</th><th>Issue</th><th>Severity</th>"
+                     "<th>Old TC</th><th>New TC</th><th>Old → new</th></tr>")
+            for row in rd["rows"]:
+                change = " → ".join(x for x in (row["old_found"], row["new_found"]) if x) or "–"
+                h.append(f"<tr><td>{_pill(row['status'])}</td><td>{escape(row['code'])}</td>"
+                         f"<td>{_pill(row['severity'])}</td><td class='tc'>{escape(row['old_timecode'] or '–')}</td>"
+                         f"<td class='tc'>{escape(row['new_timecode'] or '–')}</td><td>{escape(change)}</td></tr>")
+            h.append("</table></div>")
+        h.append("</div>")
+    return "".join(h)
+
+
+def _scorecard(batch: BatchResult) -> str:
+    rows = batch.scorecard
+    if not rows or all(r["producer"] == "Unassigned" for r in rows):
+        return ""
+    h = ["<h2 id='scorecard'>Producer scorecard</h2><p class='sub'>Click a column to sort. First-time pass = "
+         "the first version of each deliverable passed QC. Sync offset is the average pip error in frames.</p>"
+         "<div class='card scroll'><table class='scorecard sortable'><thead><tr><th>Producer</th><th>Files</th>"
+         "<th>First-time pass</th><th>Good</th><th>Notes</th><th>Reject</th><th>Top issues</th>"
+         "<th>Avg sync offset</th><th>Summary</th></tr></thead><tbody>"]
+    for r in rows:
+        rate = r["first_time_pass_rate"]
+        offset = r["avg_sync_offset_frames"]
+        h.append(f"<tr><td><b>{escape(r['producer'])}</b></td><td class='num'>{r['files']}</td>"
+                 f"<td class='num' data-sort='{rate}'>{rate:.0%}</td>"
+                 f"<td class='num'>{r['good']}</td><td class='num'>{r['acceptable']}</td>"
+                 f"<td class='num'>{r['reject']}</td>"
+                 f"<td>{escape(', '.join(r['top_issues']) or '–')}</td>"
+                 f"<td class='num' data-sort='{offset if offset is not None else -1}'>"
+                 f"{'–' if offset is None else f'{offset:.1f} fr'}</td>"
+                 f"<td>{escape(r['note'])}</td></tr>")
+    h.append("</tbody></table></div>")
+    return "".join(h)
+
+
+def _files(batch: BatchResult, spec: dict) -> str:
+    show_producer = any(r.producer for r in batch.files)
+    h = ["<h2 id='files'>Files</h2><div class='card scroll'><table class='files sortable'><thead><tr><th>File</th>"
+         + ("<th>Producer</th>" if show_producer else "")
+         + "<th>Result</th><th>Format</th><th>Loudness</th><th>True peak</th><th>Clips</th><th>Head pip</th>"
+           "</tr></thead><tbody>"]
+    for r in batch.files:
         m = r.metrics
         fmt = (f"{m['sample_rate'] / 1000:g}k / {m['bit_depth']}-bit / {m['channels']}ch"
                if "sample_rate" in m else "–")
         pip = m.get("head_pip") or "missing"
         if m.get("head_pip_offset_frames") is not None:
             pip += f" ({int(round(m['head_pip_offset_frames'])):+d} fr)"
-        h.append(f"<tr><td class='fname'>{escape(r.file)}</td>"
-                 f"<td>{_pill('PASS', 'Good') if r.passed else _pill('FAIL', 'Reject')}</td>"
-                 f"<td class='num'>{fmt}</td>"
-                 f"<td class='num'>{m.get('integrated_lufs', '–')} LUFS</td>"
-                 f"<td class='num'>{m.get('true_peak_dbtp', '–')} dBTP</td>"
-                 f"<td class='num'>{m.get('clip_events', '–')}</td>"
-                 f"<td class='num'>{escape(pip)}</td></tr>")
-    h.append("</table></div>")
-
-    # issues
-    h.append("<h2>Issues</h2>")
-    if not issues:
-        h.append("<div class='card'>No issues found.</div>")
-    else:
-        h.append("<div class='card scroll'><table class='issues'><tr><th>#</th><th>Timecode</th><th>Check</th>"
-                 "<th>Severity</th><th>Problem / fix</th><th>Expected</th><th>Found</th></tr>")
-        n = 0
-        for r in results:
-            if not r.issues:
-                continue
-            h.append(f"<tr class='group'><td colspan='7' class='fname'>{escape(r.file)}</td></tr>")
-            for i in r.issues:
-                n += 1
-                h.append(f"<tr><td class='num'>{n}</td><td class='tc'>{escape(i.timecode or '–')}</td>"
-                         f"<td>{escape(i.code)}</td><td>{_pill(i.severity)}</td>"
-                         f"<td>{escape(i.message)}<div class='fix'>Fix: {escape(i.fix)}</div></td>"
-                         f"<td>{escape(i.expected)}</td><td>{escape(i.found)}</td></tr>")
-        h.append("</table></div>")
-
-    # load reports + waveforms
-    h.append("<h2>Load reports</h2>")
-    for r in results:
-        rating_cls = r.rating.split()[0] if r.rating else "Info"
-        h.append(f"<div class='card'><div class='fname'>{escape(r.file)} {_pill(r.rating, rating_cls)}</div>"
-                 f"<p>{escape(r.load_report)}</p>{_waveform_svg(r, spec)}"
-                 "<div class='legend'>Dashed: pip and FFOA positions from the spec · "
-                 "Solid: issues (red critical, amber warning)</div></div>")
-
-    h.append("<p class='meta'>Generated by dubqc. Timecodes are session timecode at "
-             f"{spec['reel']['fps']} fps from {escape(spec['reel']['session_start'])}.</p>")
-    h.append("</div></body></html>")
+        result = _pill("Superseded") if r.superseded else (_pill("PASS", "Good") if r.passed else _pill("FAIL", "Reject"))
+        h.append(f"<tr class='{'superseded' if r.superseded else ''}'><td class='fname'>{escape(r.file)}</td>"
+                 + (f"<td>{escape(r.producer or '–')}</td>" if show_producer else "")
+                 + f"<td>{result}</td><td class='num'>{fmt}</td>"
+                   f"<td class='num'>{m.get('integrated_lufs', '–')} LUFS</td>"
+                   f"<td class='num'>{m.get('true_peak_dbtp', '–')} dBTP</td>"
+                   f"<td class='num'>{m.get('clip_events', '–')}</td>"
+                   f"<td class='num'>{escape(pip)}</td></tr>")
+    h.append("</tbody></table></div>")
     return "".join(h)
+
+
+def _issues(batch: BatchResult) -> str:
+    files = [r for r in batch.files if r.issues]
+    h = ["<h2 id='issues'>Issues</h2>"]
+    if not files:
+        return h[0] + "<div class='card'>No issues found.</div>"
+    h.append("<div class='card scroll'><table class='issues'><tr><th>#</th><th>Timecode</th><th>Check</th>"
+             "<th>Severity</th><th>Problem / fix</th><th>Expected</th><th>Found</th></tr>")
+    n = 0
+    for r in files:
+        note = " <span class='muted'>(superseded by a later version)</span>" if r.superseded else ""
+        h.append(f"<tr class='group'><td colspan='7'><span class='fname'>{escape(r.file)}</span>{note}</td></tr>")
+        for i in r.issues:
+            n += 1
+            h.append(f"<tr><td class='num'>{n}</td><td class='tc'>{escape(i.timecode or '–')}</td>"
+                     f"<td>{escape(i.code)}</td><td>{_pill(i.severity)}</td>"
+                     f"<td>{escape(i.message)}<div class='fix'>Fix: {escape(i.fix)}</div></td>"
+                     f"<td>{escape(i.expected)}</td><td>{escape(i.found)}</td></tr>")
+    h.append("</table></div>")
+    return "".join(h)
+
+
+def _load_reports(batch: BatchResult, spec: dict) -> str:
+    h = ["<h2 id='load'>Load reports</h2><p class='sub'>One paragraph per file to send back to the territory. "
+         "Waveform: dashed lines are the pip and FFOA from the spec; solid lines are issues "
+         "(red critical, amber warning).</p>"]
+    many = len(batch.files) > 4
+    for r in batch.files:
+        is_open = "" if many and (r.passed or r.superseded) else " open"
+        h.append(f"<details class='load'{is_open}><summary><span class='fname'>{escape(r.file)}</span> "
+                 f"{_pill(r.rating, r.rating)}{' ' + _pill('Superseded') if r.superseded else ''}</summary>"
+                 f"<p>{escape(r.load_report)}</p>{_waveform_svg(r, spec)}</details>")
+    return "".join(h)
+
+
+def to_html(results, spec: dict, project: str = "Dub QC") -> str:
+    batch = _as_batch(results, spec)
+    body = [_header(batch, spec, project), "<div class='wrap'>", _summary(batch), _manifest(batch, spec),
+            _redeliveries(batch), _scorecard(batch), _files(batch, spec), _issues(batch),
+            _load_reports(batch, spec),
+            f"<footer>{brand.NAME} · {brand.TAGLINE}. Timecodes are session timecode at "
+            f"{spec['reel']['fps']} fps from each reel's session start.</footer></div>"]
+    return ("<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<title>Dub QC Report</title>{brand.FONT_LINK}<style>{CSS}</style></head><body>"
+            + "".join(body) + f"<script>{SORT_JS}</script></body></html>")
