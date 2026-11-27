@@ -4,3 +4,12 @@ maxUploadSize = 4000
 
 [browser]
 gatherUsageStats = false
+
+# Dub QC brand: off-white body, slate text, teal accent
+[theme]
+base = "light"
+primaryColor = "#0f9488"
+backgroundColor = "#f7f6f2"
+secondaryBackgroundColor = "#ebe8e1"
+textColor = "#18212b"
+font = "sans serif"

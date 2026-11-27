@@ -12,7 +12,7 @@ format:
 
 naming:
   # <TITLE>_<TERR>_<REEL>_<STEM>_<STAGE>_v<NN>.wav  e.g. TEST_SPC_R1_DX_PMX_v01.wav
-  pattern: '^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$'
+  pattern: '^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|MX|FX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$'
 
 reel:
   number: 1

@@ -11,7 +11,7 @@ PARTS = [
     ("TITLE", r"[A-Z0-9]+", "upper-case letters/numbers, no spaces"),
     ("TERR", r"[A-Z]{3}", "3-letter territory code, e.g. SPC"),
     ("REEL", r"R\d+", "R + reel number, e.g. R1"),
-    ("STEM", r"DX|ME|VOX", "DX, ME or VOX"),
+    ("STEM", r"DX|MX|FX|ME|VOX", "DX, MX, FX, ME or VOX"),
     ("STAGE", r"PMX|PMR|FSS", "PMX, PMR or FSS"),
     ("VERSION", r"v\d{2}", "v + two digits, e.g. v01"),
 ]
@@ -26,6 +26,28 @@ def parse_name(filename: str) -> dict | None:
     out = {name: bit for (name, _, _), bit in zip(PARTS, bits)}
     out["EXT"] = ext
     return out
+
+
+def parse_valid(filename: str) -> dict | None:
+    """Like parse_name, but only if every part is well formed. Adds REEL_NUM and VERSION_NUM."""
+    parts = parse_name(filename)
+    if not parts or parts["EXT"] != "wav":
+        return None
+    if not all(re.fullmatch(pattern, parts[name]) for name, pattern, _ in PARTS):
+        return None
+    parts["REEL_NUM"] = int(parts["REEL"][1:])
+    parts["VERSION_NUM"] = int(parts["VERSION"][1:])
+    return parts
+
+
+def slot_key(filename: str) -> tuple | None:
+    """The deliverable a file fills: (territory, reel, stem). Versions of the same thing share a slot."""
+    parts = parse_valid(filename)
+    return (parts["TERR"], parts["REEL_NUM"], parts["STEM"]) if parts else None
+
+
+def slot_label(slot: tuple) -> str:
+    return f"R{slot[1]} {slot[2]}"
 
 
 def _diagnose(filename: str) -> list[str]:
@@ -70,7 +92,8 @@ def check_naming(filename: str, spec: dict) -> list[Issue]:
 
     reel_in_name = int(parts["REEL"][1:])
     reel_in_spec = spec["reel"].get("number")
-    if reel_in_spec is not None and reel_in_name != int(reel_in_spec):
+    known_reels = {int(k) for k in (spec.get("reels") or {})}
+    if reel_in_name not in known_reels and reel_in_spec is not None and reel_in_name != int(reel_in_spec):
         issues.append(Issue(
             check="Naming", code="REEL MISMATCH", severity=WARNING, file=filename,
             message=f"Filename says reel {reel_in_name} but the spec is for reel {reel_in_spec}.",

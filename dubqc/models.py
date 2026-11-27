@@ -37,6 +37,9 @@ class FileResult:
     rating: str = ""
     waveform: list[float] = field(default_factory=list)   # peak per bin, 0..1
     duration_s: float = 0.0
+    producer: str = ""
+    reel_timecodes: dict = field(default_factory=dict)    # the reel's fps/session_start/pip/ffoa used
+    superseded: bool = False                               # a later version of this deliverable arrived
 
     @property
     def passed(self) -> bool:

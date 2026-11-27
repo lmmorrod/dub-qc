@@ -11,7 +11,7 @@ DEFAULT_SPEC: dict = {
     "name": "Default broadcast delivery (EBU R128)",
     "loudness": {"integrated_lufs": -23.0, "tolerance_lu": 1.0, "true_peak_dbtp": -1.0},
     "format": {"sample_rate": 48000, "bit_depth": 24, "channels": 1},
-    "naming": {"pattern": r"^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$"},
+    "naming": {"pattern": r"^[A-Z0-9]+_[A-Z]{3}_R\d+_(DX|MX|FX|ME|VOX)_(PMX|PMR|FSS)_v\d{2}\.wav$"},
     "reel": {
         "number": 1,
         "fps": 24,
@@ -32,6 +32,7 @@ DEFAULT_SPEC: dict = {
         "SPC": "Castilian Spanish",
         "LAS": "Latin American Spanish",
         "FRE": "Parisian French",
+        "FRA": "French",
         "CFR": "Canadian French",
         "GER": "German",
         "ITA": "Italian",
@@ -46,11 +47,28 @@ DEFAULT_SPEC: dict = {
         "CAN": "Cantonese",
         "HIN": "Hindi",
     },
-    "stems": {"DX": "dialogue", "ME": "M&E", "VOX": "vocal"},
+    "stems": {"DX": "dialogue", "MX": "music", "FX": "effects", "ME": "M&E", "VOX": "vocal"},
     "stages": {"PMX": "premix", "PMR": "printmaster", "FSS": "FSS"},
+    # Optional per-reel timecodes, e.g. {2: {session_start: '02:00:00:00', pip: ..., ffoa: ...}}
+    "reels": {},
+    # Optional expected deliverables: {territories: [...], reels: [...], stems: [...]}
+    "manifest": None,
+    # How close (seconds) a clip in v02 must be to one in v01 to count as the same problem
+    "redelivery": {"match_tolerance_s": 1.0},
     "script": {"match_threshold": 0.85},
     "sync": {"start_offset_s": 0.5, "duration_tolerance_pct": 20},
 }
+
+
+def spec_for_reel(spec: dict, reel_number: int | None) -> dict:
+    """The spec with that reel's own timecodes (from `reels:`) laid over the default `reel:`."""
+    reels = {int(k): v for k, v in (spec.get("reels") or {}).items()}
+    if reel_number is None or reel_number not in reels:
+        return spec
+    out = copy.deepcopy(spec)
+    out["reel"] = _merge(spec["reel"], reels[reel_number])
+    out["reel"]["number"] = reel_number
+    return out
 
 
 def _merge(base: dict, override: dict) -> dict:

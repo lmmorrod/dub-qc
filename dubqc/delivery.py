@@ -8,13 +8,18 @@ import soundfile as sf
 
 from . import audio_checks as ac
 from .models import CRITICAL, SEVERITY_ORDER, WARNING, FileResult
-from .naming import check_naming, describe
+from .naming import check_naming, describe, parse_valid
+from .spec import spec_for_reel
 
 
-def check_file(path: str | Path, spec: dict, display_name: str | None = None) -> FileResult:
+def check_file(path: str | Path, spec: dict, display_name: str | None = None,
+               producer: str = "") -> FileResult:
     path = Path(path)
     name = display_name or path.name
-    result = FileResult(file=name, path=str(path))
+    result = FileResult(file=name, path=str(path), producer=producer)
+    parts = parse_valid(name)
+    spec = spec_for_reel(spec, parts["REEL_NUM"] if parts else None)
+    result.reel_timecodes = {k: spec["reel"].get(k) for k in ("fps", "session_start", "pip", "ffoa")}
 
     result.issues += check_naming(name, spec)
 
