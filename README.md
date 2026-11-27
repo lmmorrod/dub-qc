@@ -1,6 +1,6 @@
 # Dub QC
 
-**Delivery QC for dubbed dialogue.**
+**Delivery QC for dubbed dialogue.** · [**See the project page →**](https://lmmorrod.github.io/dub-qc/)
 
 Dub QC checks dubbed audio deliveries automatically and flags errors with timecodes. It's designed to run alongside a manual listen-through, with a QC checklist and a delivery-tracking spreadsheet. It runs the technical checks at every stage, from raw dialogue to final deliverables, keeps track of what's still outstanding across territories, versions and redeliveries, and points whoever is doing the listen-through to exactly where to listen.
 
